@@ -222,6 +222,77 @@ impl PeerConnectionInternal {
         Ok(())
     }
 
+    async fn configure_rtp_recievers(
+        &self,
+        is_renegotiation: bool,
+        remote_desc: &RTCSessionDescription,
+        current_transceivers: Vec<RTCRtpTransceiver>,
+    ) -> Result<()> {
+        let track_details = remote_desc
+            .parsed
+            .as_ref()
+            .map(track_details_from_sdp)
+            .unwrap_or_default();
+
+        if is_renegotiation {
+            for t in &current_transceivers {
+                let receiver = match t.receiver().await {
+                    Some(r) => r,
+                    None => continue,
+                };
+
+                let tracks = receiver.tracks().await;
+
+                let mut receiver_needs_stopped = false;
+                for t in tracks {
+                    if !t.rid().is_empty() {
+                        if let Some(details) =
+                            track_details_for_rid(&track_details, t.rid().to_owned())
+                        {
+                            t.set_id(details.id.clone()).await;
+                            t.set_stream_id(details.stream_id.clone()).await;
+                            continue;
+                        }
+                    } else if t.ssrc() != 0 {
+                        if let Some(details) = track_details_for_ssrc(&track_details, t.ssrc()) {
+                            t.set_id(details.id.clone()).await;
+                            t.set_stream_id(details.stream_id.clone()).await;
+                            continue;
+                        }
+                    }
+
+                    receiver_needs_stopped = true;
+                }
+
+                if !receiver_needs_stopped {
+                    continue;
+                }
+
+                log::info!("Stopping receiver {:?}", receiver);
+                if let Err(err) = receiver.stop().await {
+                    log::warn!("Failed to stop RtpReceiver: {}", err);
+                    continue;
+                }
+
+                let interceptor = self
+                    .interceptor
+                    .upgrade()
+                    .ok_or(Error::ErrInterceptorNotBind)?;
+
+                let receiver = Arc::new(RTCRtpReceiver::new(
+                    self.setting_engine.get_receive_mtu(),
+                    receiver.kind(),
+                    Arc::clone(&self.dtls_transport),
+                    Arc::clone(&self.media_engine),
+                    interceptor,
+                ));
+                t.set_receiver(Some(receiver)).await;
+            }
+        }
+
+        todo!();
+    }
+
     /// undeclared_media_processor handles RTP/RTCP packets that don't match any a:ssrc lines
     fn undeclared_media_processor(self: &Arc<Self>) {
         let dtls_transport = Arc::clone(&self.dtls_transport);
