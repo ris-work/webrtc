@@ -22,7 +22,8 @@ pub(crate) struct PeerConnectionInternal {
     pub(super) last_offer: Mutex<String>,
     pub(super) last_answer: Mutex<String>,
 
-    pub(super) on_negotiation_needed_handler: Arc<Mutex<Option<OnNegotiationNeededHdlrFn>>>,
+    pub(super) on_negotiation_needed_handler:
+        Arc<Mutex<Option<Box<dyn OnNegotiationNeededHdlrFn>>>>,
     pub(super) is_closed: Arc<AtomicBool>,
 
     /// ops is an operations queue which will ensure the enqueued actions are
@@ -36,7 +37,7 @@ pub(crate) struct PeerConnectionInternal {
     pub(super) ice_transport: Arc<RTCIceTransport>,
     pub(super) dtls_transport: Arc<RTCDtlsTransport>,
     pub(super) on_peer_connection_state_change_handler:
-        Arc<Mutex<Option<OnPeerConnectionStateChangeHdlrFn>>>,
+        Arc<Mutex<Option<Box<dyn OnPeerConnectionStateChangeHdlrFn>>>>,
     pub(super) peer_connection_state: Arc<AtomicU8>,
     pub(super) ice_connection_state: Arc<AtomicU8>,
 
@@ -44,9 +45,10 @@ pub(crate) struct PeerConnectionInternal {
     pub(super) rtp_transceivers: Arc<Mutex<Vec<Arc<RTCRtpTransceiver>>>>,
 
     pub(super) on_track_handler: Arc<Mutex<Option<OnTrackHdlrFn>>>,
-    pub(super) on_signaling_state_change_handler: Arc<Mutex<Option<OnSignalingStateChangeHdlrFn>>>,
+    pub(super) on_signaling_state_change_handler:
+        Arc<Mutex<Option<Box<dyn OnSignalingStateChangeHdlrFn>>>>,
     pub(super) on_ice_connection_state_change_handler:
-        Arc<Mutex<Option<OnICEConnectionStateChangeHdlrFn>>>,
+        Arc<Mutex<Option<Box<dyn OnICEConnectionStateChangeHdlrFn>>>>,
     pub(super) on_data_channel_handler: Arc<Mutex<Option<OnDataChannelHdlrFn>>>,
 
     pub(super) ice_gatherer: Arc<RTCIceGatherer>,
@@ -643,7 +645,7 @@ impl PeerConnectionInternal {
         }
     }
 
-    pub(super) async fn set_gather_complete_handler(&self, f: OnGatheringCompleteHdlrFn) {
+    pub(super) async fn set_gather_complete_handler(&self, f: Box<dyn OnGatheringCompleteHdlrFn>) {
         self.ice_gatherer.on_gathering_complete(f).await;
     }
 

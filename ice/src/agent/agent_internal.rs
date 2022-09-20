@@ -32,10 +32,11 @@ pub struct AgentInternal {
     pub(crate) chan_candidate_pair_tx: Mutex<Option<mpsc::Sender<()>>>,
     pub(crate) chan_state_tx: Mutex<Option<mpsc::Sender<ConnectionState>>>,
 
-    pub(crate) on_connection_state_change_hdlr: Mutex<Option<OnConnectionStateChangeHdlrFn>>,
+    pub(crate) on_connection_state_change_hdlr:
+        Mutex<Option<Box<dyn OnConnectionStateChangeHdlrFn>>>,
     pub(crate) on_selected_candidate_pair_change_hdlr:
-        Mutex<Option<OnSelectedCandidatePairChangeHdlrFn>>,
-    pub(crate) on_candidate_hdlr: Mutex<Option<OnCandidateHdlrFn>>,
+        Mutex<Option<Box<dyn OnSelectedCandidatePairChangeHdlrFn>>>,
+    pub(crate) on_candidate_hdlr: Mutex<Option<Box<dyn OnCandidateHdlrFn>>>,
 
     pub(crate) tie_breaker: AtomicU64,
     pub(crate) is_controlling: AtomicBool,
@@ -1073,7 +1074,7 @@ impl AgentInternal {
                     if let (Some(f), Some(p)) =
                         (&mut *on_selected_candidate_pair_change_hdlr, &selected_pair)
                     {
-                        f(&p.local, &p.remote).await;
+                        f.call(p.local.clone(), p.remote.clone()).await;
                     }
                 }
             }
@@ -1087,13 +1088,13 @@ impl AgentInternal {
                         if let Some(s) = opt_state {
                             let mut on_connection_state_change_hdlr = ai.on_connection_state_change_hdlr.lock().await;
                             if let Some(f) = &mut *on_connection_state_change_hdlr{
-                                f(s).await;
+                                f.call(s).await;
                             }
                         } else {
                             while let Some(c) = chan_candidate_rx.recv().await {
                                 let mut on_candidate_hdlr = ai.on_candidate_hdlr.lock().await;
                                 if let Some(f) = &mut *on_candidate_hdlr {
-                                    f(c).await;
+                                    f.call(c).await;
                                 }
                             }
                             break;
@@ -1103,13 +1104,13 @@ impl AgentInternal {
                         if let Some(c) = opt_cand {
                             let mut on_candidate_hdlr = ai.on_candidate_hdlr.lock().await;
                             if let Some(f) = &mut *on_candidate_hdlr{
-                                f(c).await;
+                                f.call(c).await;
                             }
                         } else {
                             while let Some(s) = chan_state_rx.recv().await {
                                 let mut on_connection_state_change_hdlr = ai.on_connection_state_change_hdlr.lock().await;
                                 if let Some(f) = &mut *on_connection_state_change_hdlr{
-                                    f(s).await;
+                                    f.call(s).await;
                                 }
                             }
                             break;

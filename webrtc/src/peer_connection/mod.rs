@@ -113,30 +113,81 @@ pub fn math_rand_alpha(n: usize) -> String {
     rand_string
 }
 
-pub type OnSignalingStateChangeHdlrFn = Box<
-    dyn (FnMut(RTCSignalingState) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-        + Send
-        + Sync,
->;
+// pub type OnSignalingStateChangeHdlrFn = Box<
+//     dyn (FnMut(RTCSignalingState) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
+//         + Send
+//         + Sync,
+// >;
 
-pub type OnICEConnectionStateChangeHdlrFn = Box<
-    dyn (FnMut(RTCIceConnectionState) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-        + Send
-        + Sync,
->;
+#[async_trait]
+pub trait OnSignalingStateChangeHdlrFn: Send + Sync {
+    async fn call(&mut self, s: RTCSignalingState);
+}
 
-pub type OnPeerConnectionStateChangeHdlrFn = Box<
-    dyn (FnMut(RTCPeerConnectionState) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-        + Send
-        + Sync,
->;
+#[async_trait]
+impl<T, F> OnSignalingStateChangeHdlrFn for F
+where
+    F: FnMut(RTCSignalingState) -> T + Send + Sync,
+    T: Future<Output = ()> + Send,
+{
+    async fn call(&mut self, s: RTCSignalingState) {
+        (*self)(s).await
+    }
+}
 
+// pub type OnICEConnectionStateChangeHdlrFn = Box<
+//     dyn (FnMut(RTCIceConnectionState) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
+//         + Send
+//         + Sync,
+// >;
+
+#[async_trait]
+pub trait OnICEConnectionStateChangeHdlrFn: Send + Sync {
+    async fn call(&mut self, s: RTCIceConnectionState);
+}
+
+#[async_trait]
+impl<T, F> OnICEConnectionStateChangeHdlrFn for F
+where
+    F: FnMut(RTCIceConnectionState) -> T + Send + Sync,
+    T: Future<Output = ()> + Send,
+{
+    async fn call(&mut self, s: RTCIceConnectionState) {
+        (*self)(s).await
+    }
+}
+
+// pub type OnPeerConnectionStateChangeHdlrFn = Box<
+//     dyn (FnMut(RTCPeerConnectionState) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
+//         + Send
+//         + Sync,
+// >;
+
+#[async_trait]
+pub trait OnPeerConnectionStateChangeHdlrFn: Send + Sync {
+    async fn call(&mut self, s: RTCPeerConnectionState);
+}
+
+#[async_trait]
+impl<T, F> OnPeerConnectionStateChangeHdlrFn for F
+where
+    F: FnMut(RTCPeerConnectionState) -> T + Send + Sync,
+    T: Future<Output = ()> + Send,
+{
+    async fn call(&mut self, s: RTCPeerConnectionState) {
+        (*self)(s).await
+    }
+}
+
+// TODO: Can't be reworked due to the dynamically inferred return type in callbacks
 pub type OnDataChannelHdlrFn = Box<
     dyn (FnMut(Arc<RTCDataChannel>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
         + Send
         + Sync,
 >;
 
+// TODO: Can't be reworked due to the dynamically inferred return type in the callback,
+//       that set in webrtc::peer_connection::peer_connection_test::test_get_stats()
 pub type OnTrackHdlrFn = Box<
     dyn (FnMut(
             Option<Arc<TrackRemote>>,
@@ -146,14 +197,31 @@ pub type OnTrackHdlrFn = Box<
         + Sync,
 >;
 
-pub type OnNegotiationNeededHdlrFn =
-    Box<dyn (FnMut() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>) + Send + Sync>;
+// pub type OnNegotiationNeededHdlrFn =
+//     Box<dyn (FnMut() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>) + Send + Sync>;
+
+#[async_trait]
+pub trait OnNegotiationNeededHdlrFn: Send + Sync {
+    async fn call(&mut self);
+}
+
+#[async_trait]
+impl<T, F> OnNegotiationNeededHdlrFn for F
+where
+    F: FnMut() -> T + Send + Sync,
+    T: Future<Output = ()> + Send,
+{
+    async fn call(&mut self) {
+        (*self)().await
+    }
+}
 
 #[derive(Clone)]
 struct StartTransportsParams {
     ice_transport: Arc<RTCIceTransport>,
     dtls_transport: Arc<RTCDtlsTransport>,
-    on_peer_connection_state_change_handler: Arc<Mutex<Option<OnPeerConnectionStateChangeHdlrFn>>>,
+    on_peer_connection_state_change_handler:
+        Arc<Mutex<Option<Box<dyn OnPeerConnectionStateChangeHdlrFn>>>>,
     is_closed: Arc<AtomicBool>,
     peer_connection_state: Arc<AtomicU8>,
     ice_connection_state: Arc<AtomicU8>,
@@ -169,7 +237,7 @@ struct CheckNegotiationNeededParams {
 
 #[derive(Clone)]
 struct NegotiationNeededParams {
-    on_negotiation_needed_handler: Arc<Mutex<Option<OnNegotiationNeededHdlrFn>>>,
+    on_negotiation_needed_handler: Arc<Mutex<Option<Box<dyn OnNegotiationNeededHdlrFn>>>>,
     is_closed: Arc<AtomicBool>,
     ops: Arc<Operations>,
     negotiation_needed_state: Arc<AtomicU8>,
@@ -287,7 +355,7 @@ impl RTCPeerConnection {
 
     /// on_signaling_state_change sets an event handler which is invoked when the
     /// peer connection's signaling state changes
-    pub async fn on_signaling_state_change(&self, f: OnSignalingStateChangeHdlrFn) {
+    pub async fn on_signaling_state_change(&self, f: Box<dyn OnSignalingStateChangeHdlrFn>) {
         let mut on_signaling_state_change_handler =
             self.internal.on_signaling_state_change_handler.lock().await;
         *on_signaling_state_change_handler = Some(f);
@@ -297,7 +365,7 @@ impl RTCPeerConnection {
         log::info!("signaling state changed to {}", new_state);
         let mut handler = self.internal.on_signaling_state_change_handler.lock().await;
         if let Some(f) = &mut *handler {
-            f(new_state).await;
+            f.call(new_state).await;
         }
     }
 
@@ -310,7 +378,7 @@ impl RTCPeerConnection {
 
     /// on_negotiation_needed sets an event handler which is invoked when
     /// a change has occurred which requires session negotiation
-    pub async fn on_negotiation_needed(&self, f: OnNegotiationNeededHdlrFn) {
+    pub async fn on_negotiation_needed(&self, f: Box<dyn OnNegotiationNeededHdlrFn>) {
         let mut on_negotiation_needed_handler =
             self.internal.on_negotiation_needed_handler.lock().await;
         *on_negotiation_needed_handler = Some(f);
@@ -419,7 +487,7 @@ impl RTCPeerConnection {
         {
             let mut handler = params.on_negotiation_needed_handler.lock().await;
             if let Some(f) = &mut *handler {
-                f().await;
+                f.call().await;
             }
         }
 
@@ -571,13 +639,13 @@ impl RTCPeerConnection {
     /// candidate is found.
     /// Take note that the handler is gonna be called with a nil pointer when
     /// gathering is finished.
-    pub async fn on_ice_candidate(&self, f: OnLocalCandidateHdlrFn) {
+    pub async fn on_ice_candidate(&self, f: Box<dyn OnLocalCandidateHdlrFn>) {
         self.internal.ice_gatherer.on_local_candidate(f).await
     }
 
     /// on_ice_gathering_state_change sets an event handler which is invoked when the
     /// ICE candidate gathering state has changed.
-    pub async fn on_ice_gathering_state_change(&self, f: OnICEGathererStateChangeHdlrFn) {
+    pub async fn on_ice_gathering_state_change(&self, f: Box<dyn OnICEGathererStateChangeHdlrFn>) {
         self.internal.ice_gatherer.on_state_change(f).await
     }
 
@@ -609,7 +677,10 @@ impl RTCPeerConnection {
 
     /// on_ice_connection_state_change sets an event handler which is called
     /// when an ICE connection state is changed.
-    pub async fn on_ice_connection_state_change(&self, f: OnICEConnectionStateChangeHdlrFn) {
+    pub async fn on_ice_connection_state_change(
+        &self,
+        f: Box<dyn OnICEConnectionStateChangeHdlrFn>,
+    ) {
         let mut on_ice_connection_state_change_handler = self
             .internal
             .on_ice_connection_state_change_handler
@@ -620,7 +691,7 @@ impl RTCPeerConnection {
 
     async fn do_ice_connection_state_change(
         on_ice_connection_state_change_handler: &Arc<
-            Mutex<Option<OnICEConnectionStateChangeHdlrFn>>,
+            Mutex<Option<Box<dyn OnICEConnectionStateChangeHdlrFn>>>,
         >,
         ice_connection_state: &Arc<AtomicU8>,
         cs: RTCIceConnectionState,
@@ -630,13 +701,16 @@ impl RTCPeerConnection {
         log::info!("ICE connection state changed: {}", cs);
         let mut handler = on_ice_connection_state_change_handler.lock().await;
         if let Some(f) = &mut *handler {
-            f(cs).await;
+            f.call(cs).await;
         }
     }
 
     /// on_peer_connection_state_change sets an event handler which is called
     /// when the PeerConnectionState has changed
-    pub async fn on_peer_connection_state_change(&self, f: OnPeerConnectionStateChangeHdlrFn) {
+    pub async fn on_peer_connection_state_change(
+        &self,
+        f: Box<dyn OnPeerConnectionStateChangeHdlrFn>,
+    ) {
         let mut on_peer_connection_state_change_handler = self
             .internal
             .on_peer_connection_state_change_handler
@@ -647,13 +721,13 @@ impl RTCPeerConnection {
 
     async fn do_peer_connection_state_change(
         on_peer_connection_state_change_handler: &Arc<
-            Mutex<Option<OnPeerConnectionStateChangeHdlrFn>>,
+            Mutex<Option<Box<dyn OnPeerConnectionStateChangeHdlrFn>>>,
         >,
         cs: RTCPeerConnectionState,
     ) {
         let mut handler = on_peer_connection_state_change_handler.lock().await;
         if let Some(f) = &mut *handler {
-            f(cs).await;
+            f.call(cs).await;
         }
     }
 
@@ -899,7 +973,7 @@ impl RTCPeerConnection {
     /// <https://www.w3.org/TR/webrtc/#rtcpeerconnectionstate-enum>
     async fn update_connection_state(
         on_peer_connection_state_change_handler: &Arc<
-            Mutex<Option<OnPeerConnectionStateChangeHdlrFn>>,
+            Mutex<Option<Box<dyn OnPeerConnectionStateChangeHdlrFn>>>,
         >,
         is_closed: &Arc<AtomicBool>,
         peer_connection_state: &Arc<AtomicU8>,

@@ -27,6 +27,7 @@ use agent_config::*;
 use agent_internal::*;
 use agent_stats::*;
 
+use async_trait::async_trait;
 use mdns::conn::*;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -37,7 +38,6 @@ use crate::agent::agent_gather::GatherCandidatesInternalParams;
 use crate::rand::*;
 use crate::tcp_type::TcpType;
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -63,26 +63,85 @@ impl Default for BindingRequest {
     }
 }
 
-pub type OnConnectionStateChangeHdlrFn = Box<
-    dyn (FnMut(ConnectionState) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-        + Send
-        + Sync,
->;
-pub type OnSelectedCandidatePairChangeHdlrFn = Box<
-    dyn (FnMut(
-            &Arc<dyn Candidate + Send + Sync>,
-            &Arc<dyn Candidate + Send + Sync>,
-        ) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-        + Send
-        + Sync,
->;
-pub type OnCandidateHdlrFn = Box<
-    dyn (FnMut(
-            Option<Arc<dyn Candidate + Send + Sync>>,
-        ) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-        + Send
-        + Sync,
->;
+// pub type OnConnectionStateChangeHdlrFn = Box<
+//     dyn (FnMut(ConnectionState) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
+//         + Send
+//         + Sync,
+// >;
+
+#[async_trait]
+pub trait OnConnectionStateChangeHdlrFn: Send + Sync {
+    async fn call(&mut self, cs: ConnectionState);
+}
+
+#[async_trait]
+impl<T, F> OnConnectionStateChangeHdlrFn for F
+where
+    F: FnMut(ConnectionState) -> T + Send + Sync,
+    T: Future<Output = ()> + Send,
+{
+    async fn call(&mut self, cs: ConnectionState) {
+        (*self)(cs).await
+    }
+}
+
+// pub type OnSelectedCandidatePairChangeHdlrFn = Box<
+//     dyn (FnMut(
+//             Arc<dyn Candidate + Send + Sync>,
+//             Arc<dyn Candidate + Send + Sync>,
+//         ) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
+//         + Send
+//         + Sync,
+// >;
+
+#[async_trait]
+pub trait OnSelectedCandidatePairChangeHdlrFn: Send + Sync {
+    async fn call(
+        &mut self,
+        c1: Arc<dyn Candidate + Send + Sync>,
+        c2: Arc<dyn Candidate + Send + Sync>,
+    );
+}
+
+#[async_trait]
+impl<T, F> OnSelectedCandidatePairChangeHdlrFn for F
+where
+    F: FnMut(Arc<dyn Candidate + Send + Sync>, Arc<dyn Candidate + Send + Sync>) -> T + Send + Sync,
+    T: Future<Output = ()> + Send,
+{
+    async fn call(
+        &mut self,
+        c1: Arc<dyn Candidate + Send + Sync>,
+        c2: Arc<dyn Candidate + Send + Sync>,
+    ) {
+        (*self)(c1, c2).await
+    }
+}
+
+// pub type OnCandidateHdlrFn = Box<
+//     dyn (FnMut(
+//             Option<Arc<dyn Candidate + Send + Sync>>,
+//         ) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
+//         + Send
+//         + Sync,
+// >;
+
+#[async_trait]
+pub trait OnCandidateHdlrFn: Send + Sync {
+    async fn call(&mut self, c: Option<Arc<dyn Candidate + Send + Sync>>);
+}
+
+#[async_trait]
+impl<T, F> OnCandidateHdlrFn for F
+where
+    F: FnMut(Option<Arc<dyn Candidate + Send + Sync>>) -> T + Send + Sync,
+    T: Future<Output = ()> + Send,
+{
+    async fn call(&mut self, c: Option<Arc<dyn Candidate + Send + Sync>>) {
+        (*self)(c).await
+    }
+}
+
 pub type GatherCandidateCancelFn = Box<dyn Fn() + Send + Sync>;
 
 struct ChanReceivers {
@@ -236,14 +295,17 @@ impl Agent {
     }
 
     /// Sets a handler that is fired when the connection state changes.
-    pub async fn on_connection_state_change(&self, f: OnConnectionStateChangeHdlrFn) {
+    pub async fn on_connection_state_change(&self, f: Box<dyn OnConnectionStateChangeHdlrFn>) {
         let mut on_connection_state_change_hdlr =
             self.internal.on_connection_state_change_hdlr.lock().await;
         *on_connection_state_change_hdlr = Some(f);
     }
 
     /// Sets a handler that is fired when the final candidate pair is selected.
-    pub async fn on_selected_candidate_pair_change(&self, f: OnSelectedCandidatePairChangeHdlrFn) {
+    pub async fn on_selected_candidate_pair_change(
+        &self,
+        f: Box<dyn OnSelectedCandidatePairChangeHdlrFn>,
+    ) {
         let mut on_selected_candidate_pair_change_hdlr = self
             .internal
             .on_selected_candidate_pair_change_hdlr
@@ -254,7 +316,7 @@ impl Agent {
 
     /// Sets a handler that is fired when new candidates gathered. When the gathering process
     /// complete the last candidate is nil.
-    pub async fn on_candidate(&self, f: OnCandidateHdlrFn) {
+    pub async fn on_candidate(&self, f: Box<dyn OnCandidateHdlrFn>) {
         let mut on_candidate_hdlr = self.internal.on_candidate_hdlr.lock().await;
         *on_candidate_hdlr = Some(f);
     }

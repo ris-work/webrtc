@@ -4,6 +4,7 @@ mod sctp_transport_test;
 pub mod sctp_transport_capabilities;
 pub mod sctp_transport_state;
 
+use async_trait::async_trait;
 use sctp_transport_state::RTCSctpTransportState;
 use std::collections::HashSet;
 
@@ -34,25 +35,42 @@ use util::Conn;
 
 const SCTP_MAX_CHANNELS: u16 = u16::MAX;
 
+// TODO: Can't be reworked due to the dynamically inferred return type in callbacks
 pub type OnDataChannelHdlrFn = Box<
     dyn (FnMut(Arc<RTCDataChannel>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
         + Send
         + Sync,
 >;
 
-pub type OnDataChannelOpenedHdlrFn = Box<
-    dyn (FnMut(Arc<RTCDataChannel>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-        + Send
-        + Sync,
->;
+// pub type OnDataChannelOpenedHdlrFn = Box<
+//     dyn (FnMut(Arc<RTCDataChannel>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
+//         + Send
+//         + Sync,
+// >;
+
+#[async_trait]
+pub trait OnDataChannelOpenedHdlrFn: Send + Sync {
+    async fn call(&mut self, c: Arc<RTCDataChannel>);
+}
+
+#[async_trait]
+impl<T, F> OnDataChannelOpenedHdlrFn for F
+where
+    F: FnMut(Arc<RTCDataChannel>) -> T + Send + Sync,
+    T: Future<Output = ()> + Send,
+{
+    async fn call(&mut self, c: Arc<RTCDataChannel>) {
+        (*self)(c).await
+    }
+}
 
 struct AcceptDataChannelParams {
     notify_rx: Arc<Notify>,
     sctp_association: Arc<Association>,
     data_channels: Arc<Mutex<Vec<Arc<RTCDataChannel>>>>,
-    on_error_handler: Arc<Mutex<Option<OnErrorHdlrFn>>>,
+    on_error_handler: Arc<Mutex<Option<Box<dyn OnErrorHdlrFn>>>>,
     on_data_channel_handler: Arc<Mutex<Option<OnDataChannelHdlrFn>>>,
-    on_data_channel_opened_handler: Arc<Mutex<Option<OnDataChannelOpenedHdlrFn>>>,
+    on_data_channel_opened_handler: Arc<Mutex<Option<Box<dyn OnDataChannelOpenedHdlrFn>>>>,
     data_channels_opened: Arc<AtomicU32>,
     data_channels_accepted: Arc<AtomicU32>,
     setting_engine: Arc<SettingEngine>,
@@ -80,9 +98,9 @@ pub struct RTCSctpTransport {
 
     sctp_association: Mutex<Option<Arc<Association>>>,
 
-    on_error_handler: Arc<Mutex<Option<OnErrorHdlrFn>>>,
+    on_error_handler: Arc<Mutex<Option<Box<dyn OnErrorHdlrFn>>>>,
     on_data_channel_handler: Arc<Mutex<Option<OnDataChannelHdlrFn>>>,
-    on_data_channel_opened_handler: Arc<Mutex<Option<OnDataChannelOpenedHdlrFn>>>,
+    on_data_channel_opened_handler: Arc<Mutex<Option<Box<dyn OnDataChannelOpenedHdlrFn>>>>,
 
     // DataChannels
     pub(crate) data_channels: Arc<Mutex<Vec<Arc<RTCDataChannel>>>>,
@@ -236,7 +254,7 @@ impl RTCSctpTransport {
                                 log::error!("Failed to accept data channel: {}", err);
                                 let mut handler = param.on_error_handler.lock().await;
                                 if let Some(f) = &mut *handler {
-                                    f(err.into()).await;
+                                    f.call(err.into()).await;
                                 }
                             }
                             break;
@@ -308,7 +326,7 @@ impl RTCSctpTransport {
             {
                 let mut handler = param.on_data_channel_opened_handler.lock().await;
                 if let Some(f) = &mut *handler {
-                    f(rtc_dc).await;
+                    f.call(rtc_dc).await;
                     param.data_channels_opened.fetch_add(1, Ordering::SeqCst);
                 }
             }
@@ -317,7 +335,7 @@ impl RTCSctpTransport {
 
     /// on_error sets an event handler which is invoked when
     /// the SCTP connection error occurs.
-    pub async fn on_error(&self, f: OnErrorHdlrFn) {
+    pub async fn on_error(&self, f: Box<dyn OnErrorHdlrFn>) {
         let mut handler = self.on_error_handler.lock().await;
         *handler = Some(f);
     }
@@ -331,7 +349,7 @@ impl RTCSctpTransport {
 
     /// on_data_channel_opened sets an event handler which is invoked when a data
     /// channel is opened
-    pub async fn on_data_channel_opened(&self, f: OnDataChannelOpenedHdlrFn) {
+    pub async fn on_data_channel_opened(&self, f: Box<dyn OnDataChannelOpenedHdlrFn>) {
         let mut handler = self.on_data_channel_opened_handler.lock().await;
         *handler = Some(f);
     }

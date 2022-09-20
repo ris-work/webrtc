@@ -191,12 +191,12 @@ async fn test_on_selected_candidate_pair_change() -> Result<()> {
     let a = Agent::new(AgentConfig::default()).await?;
     let (callback_called_tx, mut callback_called_rx) = mpsc::channel::<()>(1);
     let callback_called_tx = Arc::new(Mutex::new(Some(callback_called_tx)));
-    let cb: OnSelectedCandidatePairChangeHdlrFn = Box::new(move |_, _| {
+    let cb = Box::new(move |_, _| {
         let callback_called_tx_clone = Arc::clone(&callback_called_tx);
-        Box::pin(async move {
+        async move {
             let mut tx = callback_called_tx_clone.lock().await;
             tx.take();
-        })
+        }
     });
     a.on_selected_candidate_pair_change(cb).await;
 
@@ -1737,10 +1737,10 @@ async fn test_connection_state_connecting_to_failed() -> Result<()> {
     let connection_state_check = move |wf: Worker, wc: Worker| {
         let wf = Arc::new(Mutex::new(Some(wf)));
         let wc = Arc::new(Mutex::new(Some(wc)));
-        let hdlr_fn: OnConnectionStateChangeHdlrFn = Box::new(move |c: ConnectionState| {
+        let hdlr_fn = move |c: ConnectionState| {
             let wf_clone = Arc::clone(&wf);
             let wc_clone = Arc::clone(&wc);
-            Box::pin(async move {
+            async move {
                 if c == ConnectionState::Failed {
                     let mut f = wf_clone.lock().await;
                     f.take();
@@ -1750,19 +1750,19 @@ async fn test_connection_state_connecting_to_failed() -> Result<()> {
                 } else if c == ConnectionState::Connected || c == ConnectionState::Completed {
                     panic!("Unexpected ConnectionState: {}", c);
                 }
-            })
-        });
+            }
+        };
         hdlr_fn
     };
 
     let (wf1, wc1) = (is_failed.worker(), is_checking.worker());
     a_agent
-        .on_connection_state_change(connection_state_check(wf1, wc1))
+        .on_connection_state_change(Box::new(connection_state_check(wf1, wc1)))
         .await;
 
     let (wf2, wc2) = (is_failed.worker(), is_checking.worker());
     b_agent
-        .on_connection_state_change(connection_state_check(wf2, wc2))
+        .on_connection_state_change(Box::new(connection_state_check(wf2, wc2)))
         .await;
 
     let agent_a = Arc::clone(&a_agent);
@@ -2122,7 +2122,7 @@ async fn test_run_task_in_selected_candidate_pair_change_callback() -> Result<()
     let is_tested_tx = Arc::new(Mutex::new(Some(is_tested_tx)));
     a_agent
         .on_selected_candidate_pair_change(Box::new(
-            move |_: &Arc<dyn Candidate + Send + Sync>, _: &Arc<dyn Candidate + Send + Sync>| {
+            move |_: Arc<dyn Candidate + Send + Sync>, _: Arc<dyn Candidate + Send + Sync>| {
                 let is_tested_tx_clone = Arc::clone(&is_tested_tx);
                 Box::pin(async move {
                     let mut tx = is_tested_tx_clone.lock().await;
