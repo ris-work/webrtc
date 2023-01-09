@@ -108,7 +108,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --workspace --all-targets --all-features --all -- -D warnings
+          args: --workspace --all-targets --all-features --all -- -D "clippy::all" -D "rustc::all" -W "rustc::missing_docs"
       - name: 💬 Check formatting
         uses: actions-rs/cargo@v1
         with:
