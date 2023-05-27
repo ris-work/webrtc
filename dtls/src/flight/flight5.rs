@@ -138,7 +138,18 @@ impl Flight for Flight5 {
             .await;
 
         {
-            let cipher_suite = state.cipher_suite.lock().await;
+            let cipher_suite = match state.cipher_suite.lock() {
+                Ok(cipher_suite) => cipher_suite,
+                Err(err) => {
+                    return Err((
+                        Some(Alert {
+                            alert_level: AlertLevel::Fatal,
+                            alert_description: AlertDescription::InternalError,
+                        }),
+                        Some(err.into()),
+                    ))
+                }
+            };
             if let Some(cipher_suite) = &*cipher_suite {
                 let expected_verify_data = match prf_verify_data_server(
                     &state.master_secret,
@@ -560,7 +571,18 @@ impl Flight for Flight5 {
 
             plain_text.extend_from_slice(&merged);
 
-            let cipher_suite = state.cipher_suite.lock().await;
+            let cipher_suite = match state.cipher_suite.lock() {
+                Ok(cipher_suite) => cipher_suite,
+                Err(err) => {
+                    return Err((
+                        Some(Alert {
+                            alert_level: AlertLevel::Fatal,
+                            alert_description: AlertDescription::InternalError,
+                        }),
+                        Some(err.into()),
+                    ))
+                }
+            };
             if let Some(cipher_suite) = &*cipher_suite {
                 state.local_verify_data = match prf_verify_data_client(
                     &state.master_secret,
@@ -605,10 +627,25 @@ async fn initalize_cipher_suite(
     h: &HandshakeMessageServerKeyExchange,
     sending_plain_text: &[u8],
 ) -> Result<(), (Option<Alert>, Option<Error>)> {
-    let mut cipher_suite = state.cipher_suite.lock().await;
+    let cipher_suite = {
+        match state.cipher_suite.lock() {
+            Ok(cipher_suite) => (*cipher_suite)
+                .as_ref()
+                .map(|cipher_suite| (cipher_suite.is_initialized(), cipher_suite.hash_func())),
+            Err(err) => {
+                return Err((
+                    Some(Alert {
+                        alert_level: AlertLevel::Fatal,
+                        alert_description: AlertDescription::InternalError,
+                    }),
+                    Some(err.into()),
+                ))
+            }
+        }
+    };
 
-    if let Some(cipher_suite) = &*cipher_suite {
-        if cipher_suite.is_initialized() {
+    if let Some(cipher_suite) = &cipher_suite {
+        if cipher_suite.0 {
             return Ok(());
         }
     }
@@ -624,11 +661,11 @@ async fn initalize_cipher_suite(
         let _ = state.remote_random.marshal(&mut writer);
     }
 
-    if let Some(cipher_suite) = &*cipher_suite {
+    if let Some((_, cipher_suite_hash_func)) = cipher_suite {
         if state.extended_master_secret {
             let session_hash = match cache
                 .session_hash(
-                    cipher_suite.hash_func(),
+                    cipher_suite_hash_func,
                     cfg.initial_epoch,
                     sending_plain_text,
                 )
@@ -649,7 +686,7 @@ async fn initalize_cipher_suite(
             state.master_secret = match prf_extended_master_secret(
                 &state.pre_master_secret,
                 &session_hash,
-                cipher_suite.hash_func(),
+                cipher_suite_hash_func,
             ) {
                 Ok(m) => m,
                 Err(err) => {
@@ -667,7 +704,7 @@ async fn initalize_cipher_suite(
                 &state.pre_master_secret,
                 &client_random,
                 &server_random,
-                cipher_suite.hash_func(),
+                cipher_suite_hash_func,
             ) {
                 Ok(m) => m,
                 Err(err) => {
@@ -753,6 +790,20 @@ async fn initalize_cipher_suite(
         }
     }
 
+    let mut cipher_suite = {
+        match state.cipher_suite.lock() {
+            Ok(cipher_suite) => cipher_suite,
+            Err(err) => {
+                return Err((
+                    Some(Alert {
+                        alert_level: AlertLevel::Fatal,
+                        alert_description: AlertDescription::InternalError,
+                    }),
+                    Some(err.into()),
+                ))
+            }
+        }
+    };
     if let Some(cipher_suite) = &mut *cipher_suite {
         if let Err(err) =
             cipher_suite.init(&state.master_secret, &client_random, &server_random, true)

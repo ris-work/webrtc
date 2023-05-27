@@ -414,9 +414,9 @@ async fn test_export_keying_material() -> Result<()> {
                 ..Default::default()
             },
             local_sequence_number: Arc::new(Mutex::new(vec![0, 0])),
-            cipher_suite: Arc::new(Mutex::new(Some(Box::new(CipherSuiteAes128GcmSha256::new(
-                false,
-            ))))),
+            cipher_suite: Arc::new(std::sync::Mutex::new(Some(Box::new(
+                CipherSuiteAes128GcmSha256::new(false),
+            )))),
             ..Default::default()
         },
         cache: HandshakeCache::new(),
@@ -439,7 +439,7 @@ async fn test_export_keying_material() -> Result<()> {
 
     c.set_local_epoch(0);
     let state = c.connection_state().await;
-    if let Err(err) = state.export_keying_material(export_label, &[], 0).await {
+    if let Err(err) = state.export_keying_material(export_label, &[], 0) {
         assert!(
             err.to_string()
                 .contains(&Error::ErrHandshakeInProgress.to_string()),
@@ -453,7 +453,7 @@ async fn test_export_keying_material() -> Result<()> {
 
     c.set_local_epoch(1);
     let state = c.connection_state().await;
-    if let Err(err) = state.export_keying_material(export_label, &[0x00], 0).await {
+    if let Err(err) = state.export_keying_material(export_label, &[0x00], 0) {
         assert!(
             err.to_string()
                 .contains(&Error::ErrContextUnsupported.to_string()),
@@ -467,7 +467,7 @@ async fn test_export_keying_material() -> Result<()> {
 
     for k in INVALID_KEYING_LABELS.iter() {
         let state = c.connection_state().await;
-        if let Err(err) = state.export_keying_material(k, &[], 0).await {
+        if let Err(err) = state.export_keying_material(k, &[], 0) {
             assert!(
                 err.to_string()
                     .contains(&Error::ErrReservedExportKeyingMaterial.to_string()),
@@ -481,7 +481,7 @@ async fn test_export_keying_material() -> Result<()> {
     }
 
     let state = c.connection_state().await;
-    let keying_material = state.export_keying_material(export_label, &[], 10).await?;
+    let keying_material = state.export_keying_material(export_label, &[], 10)?;
     assert_eq!(
         &keying_material, &expected_server_key,
         "ExportKeyingMaterial client export: expected ({:?}) actual ({:?})",
@@ -490,7 +490,7 @@ async fn test_export_keying_material() -> Result<()> {
 
     c.state.is_client = true;
     let state = c.connection_state().await;
-    let keying_material = state.export_keying_material(export_label, &[], 10).await?;
+    let keying_material = state.export_keying_material(export_label, &[], 10)?;
     assert_eq!(
         &keying_material, &expected_client_key,
         "ExportKeyingMaterial client export: expected ({:?}) actual ({:?})",
@@ -1611,7 +1611,7 @@ async fn test_cipher_suite_configuration() -> Result<()> {
                 assert!(result.is_ok(), "{name} expected ok, but got error");
                 let client = result.unwrap();
                 if let Some(want_cs) = want_selected_cipher_suite {
-                    let cipher_suite = client.state.cipher_suite.lock().await;
+                    let cipher_suite = client.state.cipher_suite.lock().unwrap();
                     assert!(cipher_suite.is_some(), "{name} expected some, but got none");
                     if let Some(cs) = &*cipher_suite {
                         assert_eq!(cs.id(), want_cs,

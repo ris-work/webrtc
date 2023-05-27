@@ -273,9 +273,25 @@ impl Flight for Flight4 {
         }
 
         {
-            let mut cipher_suite = state.cipher_suite.lock().await;
-            if let Some(cipher_suite) = &mut *cipher_suite {
-                if !cipher_suite.is_initialized() {
+            let cipher_suite = {
+                match state.cipher_suite.lock() {
+                    Ok(cipher_suite) => (*cipher_suite).as_ref().map(|cipher_suite| {
+                        (cipher_suite.is_initialized(), cipher_suite.hash_func())
+                    }),
+                    Err(err) => {
+                        return Err((
+                            Some(Alert {
+                                alert_level: AlertLevel::Fatal,
+                                alert_description: AlertDescription::InternalError,
+                            }),
+                            Some(err.into()),
+                        ))
+                    }
+                }
+            };
+
+            if let Some((cipher_suite_is_initialized, cipher_suite_hash_func)) = cipher_suite {
+                if !cipher_suite_is_initialized {
                     let mut server_random = vec![];
                     {
                         let mut writer = BufWriter::<&mut Vec<u8>>::new(server_random.as_mut());
@@ -324,7 +340,7 @@ impl Flight for Flight4 {
                     }
 
                     if state.extended_master_secret {
-                        let hf = cipher_suite.hash_func();
+                        let hf = cipher_suite_hash_func;
                         let session_hash =
                             match cache.session_hash(hf, cfg.initial_epoch, &[]).await {
                                 Ok(s) => s,
@@ -342,7 +358,7 @@ impl Flight for Flight4 {
                         state.master_secret = match prf_extended_master_secret(
                             &pre_master_secret,
                             &session_hash,
-                            cipher_suite.hash_func(),
+                            cipher_suite_hash_func,
                         ) {
                             Ok(ms) => ms,
                             Err(err) => {
@@ -360,7 +376,7 @@ impl Flight for Flight4 {
                             &pre_master_secret,
                             &client_random,
                             &server_random,
-                            cipher_suite.hash_func(),
+                            cipher_suite_hash_func,
                         ) {
                             Ok(ms) => ms,
                             Err(err) => {
@@ -375,19 +391,35 @@ impl Flight for Flight4 {
                         };
                     }
 
-                    if let Err(err) = cipher_suite.init(
-                        &state.master_secret,
-                        &client_random,
-                        &server_random,
-                        false,
-                    ) {
-                        return Err((
-                            Some(Alert {
-                                alert_level: AlertLevel::Fatal,
-                                alert_description: AlertDescription::InternalError,
-                            }),
-                            Some(err),
-                        ));
+                    let mut cipher_suite = {
+                        match state.cipher_suite.lock() {
+                            Ok(cipher_suite) => cipher_suite,
+                            Err(err) => {
+                                return Err((
+                                    Some(Alert {
+                                        alert_level: AlertLevel::Fatal,
+                                        alert_description: AlertDescription::InternalError,
+                                    }),
+                                    Some(err.into()),
+                                ))
+                            }
+                        }
+                    };
+                    if let Some(cipher_suite) = &mut *cipher_suite {
+                        if let Err(err) = cipher_suite.init(
+                            &state.master_secret,
+                            &client_random,
+                            &server_random,
+                            false,
+                        ) {
+                            return Err((
+                                Some(Alert {
+                                    alert_level: AlertLevel::Fatal,
+                                    alert_description: AlertDescription::InternalError,
+                                }),
+                                Some(err),
+                            ));
+                        }
                     }
                 }
             }
@@ -538,7 +570,18 @@ impl Flight for Flight4 {
                         version: PROTOCOL_VERSION1_2,
                         random: state.local_random.clone(),
                         cipher_suite: {
-                            let cipher_suite = state.cipher_suite.lock().await;
+                            let cipher_suite = match state.cipher_suite.lock() {
+                                Ok(cipher_suite) => cipher_suite,
+                                Err(err) => {
+                                    return Err((
+                                        Some(Alert {
+                                            alert_level: AlertLevel::Fatal,
+                                            alert_description: AlertDescription::InternalError,
+                                        }),
+                                        Some(err.into()),
+                                    ))
+                                }
+                            };
                             if let Some(cipher_suite) = &*cipher_suite {
                                 cipher_suite.id()
                             } else {
@@ -728,7 +771,6 @@ mod tests {
     use super::*;
     use crate::error::Result;
     use std::sync::Arc;
-    use tokio::sync::Mutex;
 
     struct MockCipherSuite {}
 
@@ -777,7 +819,7 @@ mod tests {
     #[tokio::test]
     async fn test_flight4_process_certificateverify() {
         let mut state = State {
-            cipher_suite: Arc::new(Mutex::new(Some(Box::new(MockCipherSuite {})))),
+            cipher_suite: Arc::new(std::sync::Mutex::new(Some(Box::new(MockCipherSuite {})))),
             ..Default::default()
         };
 

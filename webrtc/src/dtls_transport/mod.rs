@@ -194,9 +194,10 @@ impl RTCDtlsTransport {
 
         if let Some(conn) = self.conn().await {
             let conn_state = conn.connection_state().await;
-            srtp_config
-                .extract_session_keys_from_dtls(conn_state, self.role().await == DTLSRole::Client)
-                .await?;
+            srtp_config.extract_session_keys_from_dtls(
+                conn_state,
+                self.role().await == DTLSRole::Client,
+            )?;
         } else {
             return Err(Error::ErrDtlsTransportNotStarted);
         }
@@ -234,9 +235,10 @@ impl RTCDtlsTransport {
 
         if let Some(conn) = self.conn().await {
             let conn_state = conn.connection_state().await;
-            srtcp_config
-                .extract_session_keys_from_dtls(conn_state, self.role().await == DTLSRole::Client)
-                .await?;
+            srtcp_config.extract_session_keys_from_dtls(
+                conn_state,
+                self.role().await == DTLSRole::Client,
+            )?;
         } else {
             return Err(Error::ErrDtlsTransportNotStarted);
         }

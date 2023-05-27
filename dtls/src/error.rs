@@ -163,6 +163,8 @@ pub enum Error {
     RcGen(#[from] RcgenError),
     #[error("mpsc send: {0}")]
     MpscSend(String),
+    #[error("mutex poison: {0}")]
+    PoisonError(String),
     #[error("keying material: {0}")]
     KeyingMaterial(#[from] KeyingMaterialExporterError),
 
@@ -229,5 +231,11 @@ impl From<block_modes::BlockModeError> for Error {
 impl<T> From<MpscSendError<T>> for Error {
     fn from(e: MpscSendError<T>) -> Self {
         Error::MpscSend(e.to_string())
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for Error {
+    fn from(e: std::sync::PoisonError<T>) -> Self {
+        Error::PoisonError(e.to_string())
     }
 }

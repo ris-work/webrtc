@@ -283,7 +283,18 @@ impl Flight for Flight3 {
                 cipher_suite.to_string()
             );
             {
-                let mut cs = state.cipher_suite.lock().await;
+                let mut cs = match state.cipher_suite.lock() {
+                    Ok(cs) => cs,
+                    Err(err) => {
+                        return Err((
+                            Some(Alert {
+                                alert_level: AlertLevel::Fatal,
+                                alert_description: AlertDescription::InternalError,
+                            }),
+                            Some(err.into()),
+                        ))
+                    }
+                };
                 *cs = Some(cipher_suite);
             }
             state.remote_random = h.random.clone();

@@ -36,7 +36,7 @@ impl Config {
     /// ExtractSessionKeysFromDTLS allows setting the Config SessionKeys by
     /// extracting them from DTLS. This behavior is defined in RFC5764:
     /// https://tools.ietf.org/html/rfc5764
-    pub async fn extract_session_keys_from_dtls(
+    pub fn extract_session_keys_from_dtls(
         &mut self,
         exporter: impl KeyingMaterialExporter,
         is_client: bool,
@@ -44,13 +44,11 @@ impl Config {
         let key_len = self.profile.key_len();
         let salt_len = self.profile.salt_len();
 
-        let keying_material = exporter
-            .export_keying_material(
-                LABEL_EXTRACTOR_DTLS_SRTP,
-                &[],
-                (key_len * 2) + (salt_len * 2),
-            )
-            .await?;
+        let keying_material = exporter.export_keying_material(
+            LABEL_EXTRACTOR_DTLS_SRTP,
+            &[],
+            (key_len * 2) + (salt_len * 2),
+        )?;
 
         let mut offset = 0;
         let client_write_key = keying_material[offset..offset + key_len].to_vec();

@@ -1,7 +1,6 @@
 #![warn(rust_2018_idioms)]
 #![allow(dead_code)]
 
-use async_trait::async_trait;
 use thiserror::Error;
 
 use std::io;
@@ -21,9 +20,8 @@ pub mod replay_detector;
 ///
 /// This trait sits here to avoid getting a direct dependency between
 /// the dtls and srtp crates.
-#[async_trait]
 pub trait KeyingMaterialExporter {
-    async fn export_keying_material(
+    fn export_keying_material(
         &self,
         label: &str,
         context: &[u8],
@@ -51,11 +49,19 @@ pub enum KeyingMaterialExporterError {
     Io(#[source] error::IoError),
     #[error("export_keying_material hash: {0}")]
     Hash(String),
+    #[error("mutex poison: {0}")]
+    PoisonError(String),
 }
 
 impl From<io::Error> for KeyingMaterialExporterError {
     fn from(e: io::Error) -> Self {
         KeyingMaterialExporterError::Io(error::IoError(e))
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for KeyingMaterialExporterError {
+    fn from(e: std::sync::PoisonError<T>) -> Self {
+        KeyingMaterialExporterError::PoisonError(e.to_string())
     }
 }
 

@@ -6,7 +6,6 @@ use super::handshake::handshake_random::*;
 use super::prf::*;
 use crate::error::*;
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::io::{BufWriter, Cursor};
 use std::marker::{Send, Sync};
@@ -24,7 +23,7 @@ pub struct State {
     pub(crate) local_random: HandshakeRandom,
     pub(crate) remote_random: HandshakeRandom,
     pub(crate) master_secret: Vec<u8>,
-    pub(crate) cipher_suite: Arc<Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>, // nil if a cipher_suite hasn't been chosen
+    pub(crate) cipher_suite: Arc<std::sync::Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>, // nil if a cipher_suite hasn't been chosen
 
     pub(crate) srtp_protection_profile: SrtpProtectionProfile, // Negotiated srtp_protection_profile
     pub peer_certificates: Vec<Vec<u8>>,
@@ -73,7 +72,7 @@ impl Default for State {
             local_random: HandshakeRandom::default(),
             remote_random: HandshakeRandom::default(),
             master_secret: vec![],
-            cipher_suite: Arc::new(Mutex::new(None)), // nil if a cipher_suite hasn't been chosen
+            cipher_suite: Arc::new(std::sync::Mutex::new(None)), // nil if a cipher_suite hasn't been chosen
 
             srtp_protection_profile: SrtpProtectionProfile::Unsupported, // Negotiated srtp_protection_profile
             peer_certificates: vec![],
@@ -136,7 +135,7 @@ impl State {
             lsn[local_epoch as usize]
         };
         let cipher_suite_id = {
-            let cipher_suite = self.cipher_suite.lock().await;
+            let cipher_suite = self.cipher_suite.lock()?;
             match &*cipher_suite {
                 Some(cipher_suite) => cipher_suite.id() as u16,
                 None => return Err(Error::ErrCipherSuiteUnset),
@@ -185,7 +184,7 @@ impl State {
         self.master_secret = serialized.master_secret.clone();
 
         // Set cipher suite
-        self.cipher_suite = Arc::new(Mutex::new(Some(cipher_suite_for_id(
+        self.cipher_suite = Arc::new(std::sync::Mutex::new(Some(cipher_suite_for_id(
             serialized.cipher_suite_id.into(),
         )?)));
 
@@ -198,8 +197,8 @@ impl State {
         Ok(())
     }
 
-    pub async fn init_cipher_suite(&mut self) -> Result<()> {
-        let mut cipher_suite = self.cipher_suite.lock().await;
+    pub fn init_cipher_suite(&mut self) -> Result<()> {
+        let mut cipher_suite = self.cipher_suite.lock()?;
         if let Some(cipher_suite) = &mut *cipher_suite {
             if cipher_suite.is_initialized() {
                 return Ok(());
@@ -243,19 +242,18 @@ impl State {
             Err(err) => return Err(Error::Other(err.to_string())),
         };
         self.deserialize(&serialized).await?;
-        self.init_cipher_suite().await?;
+        self.init_cipher_suite()?;
 
         Ok(())
     }
 }
 
-#[async_trait]
 impl KeyingMaterialExporter for State {
     /// export_keying_material returns length bytes of exported key material in a new
     /// slice as defined in RFC 5705.
     /// This allows protocols to use DTLS for key establishment, but
     /// then use some of the keying material for their own purposes
-    async fn export_keying_material(
+    fn export_keying_material(
         &self,
         label: &str,
         context: &[u8],
@@ -291,7 +289,7 @@ impl KeyingMaterialExporter for State {
             seed.extend_from_slice(&local_random);
         }
 
-        let cipher_suite = self.cipher_suite.lock().await;
+        let cipher_suite = self.cipher_suite.lock()?;
         if let Some(cipher_suite) = &*cipher_suite {
             match prf_p_hash(&self.master_secret, &seed, length, cipher_suite.hash_func()) {
                 Ok(v) => Ok(v),

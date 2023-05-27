@@ -60,7 +60,7 @@ struct ConnReaderContext {
     encrypted_packets: Vec<Vec<u8>>,
     fragment_buffer: FragmentBuffer,
     cache: HandshakeCache,
-    cipher_suite: Arc<Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>,
+    cipher_suite: Arc<std::sync::Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>,
     remote_epoch: Arc<AtomicU16>,
     handshake_tx: mpsc::Sender<mpsc::Sender<()>>,
     handshake_done_rx: mpsc::Receiver<()>,
@@ -526,7 +526,7 @@ impl DTLSConn {
         cache: &mut HandshakeCache,
         is_client: bool,
         local_sequence_number: &Arc<Mutex<Vec<u64>>>,
-        cipher_suite: &Arc<Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>,
+        cipher_suite: &Arc<std::sync::Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>,
         maximum_transmission_unit: usize,
     ) -> Result<()> {
         let mut raw_packets = vec![];
@@ -590,7 +590,7 @@ impl DTLSConn {
 
     async fn process_packet(
         local_sequence_number: &Arc<Mutex<Vec<u64>>>,
-        cipher_suite: &Arc<Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>,
+        cipher_suite: &Arc<std::sync::Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>,
         p: &mut Packet,
     ) -> Result<Vec<u8>> {
         let epoch = p.record.record_layer_header.epoch as usize;
@@ -620,7 +620,7 @@ impl DTLSConn {
         }
 
         if p.should_encrypt {
-            let cipher_suite = cipher_suite.lock().await;
+            let cipher_suite = cipher_suite.lock()?;
             if let Some(cipher_suite) = &*cipher_suite {
                 raw_packet = cipher_suite.encrypt(&p.record.record_layer_header, &raw_packet)?;
             }
@@ -631,7 +631,7 @@ impl DTLSConn {
 
     async fn process_handshake_packet(
         local_sequence_number: &Arc<Mutex<Vec<u64>>>,
-        cipher_suite: &Arc<Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>,
+        cipher_suite: &Arc<std::sync::Mutex<Option<Box<dyn CipherSuite + Send + Sync>>>>,
         maximum_transmission_unit: usize,
         p: &Packet,
         h: &Handshake,
@@ -677,7 +677,7 @@ impl DTLSConn {
             raw_packet.extend_from_slice(&record_layer_header_bytes);
             raw_packet.extend_from_slice(handshake_fragment);
             if p.should_encrypt {
-                let cipher_suite = cipher_suite.lock().await;
+                let cipher_suite = cipher_suite.lock()?;
                 if let Some(cipher_suite) = &*cipher_suite {
                     raw_packet = cipher_suite.encrypt(&record_layer_header, &raw_packet)?;
                 }
@@ -942,13 +942,24 @@ impl DTLSConn {
         // Decrypt
         if h.epoch != 0 {
             let invalid_cipher_suite = {
-                let cipher_suite = ctx.cipher_suite.lock().await;
-                if cipher_suite.is_none() {
-                    true
-                } else if let Some(cipher_suite) = &*cipher_suite {
-                    !cipher_suite.is_initialized()
-                } else {
-                    false
+                match ctx.cipher_suite.lock() {
+                    Ok(cipher_suite) => {
+                        if cipher_suite.is_none() {
+                            true
+                        } else if let Some(cipher_suite) = &*cipher_suite {
+                            !cipher_suite.is_initialized()
+                        } else {
+                            false
+                        }
+                    }
+                    Err(err) => {
+                        error!(
+                            "{}: cipher_suite lock is poisoned with {}",
+                            srv_cli_str(ctx.is_client),
+                            err
+                        );
+                        true
+                    }
                 }
             };
             if invalid_cipher_suite {
@@ -962,15 +973,16 @@ impl DTLSConn {
                 return (false, None, None);
             }
 
-            let cipher_suite = ctx.cipher_suite.lock().await;
-            if let Some(cipher_suite) = &*cipher_suite {
-                pkt = match cipher_suite.decrypt(&pkt) {
-                    Ok(pkt) => pkt,
-                    Err(err) => {
-                        debug!("{}: decrypt failed: {}", srv_cli_str(ctx.is_client), err);
-                        return (false, None, None);
-                    }
-                };
+            if let Ok(cipher_suite) = ctx.cipher_suite.lock() {
+                if let Some(cipher_suite) = &*cipher_suite {
+                    pkt = match cipher_suite.decrypt(&pkt) {
+                        Ok(pkt) => pkt,
+                        Err(err) => {
+                            debug!("{}: decrypt failed: {}", srv_cli_str(ctx.is_client), err);
+                            return (false, None, None);
+                        }
+                    };
+                }
             }
         }
 
@@ -1057,13 +1069,24 @@ impl DTLSConn {
             }
             Content::ChangeCipherSpec(_) => {
                 let invalid_cipher_suite = {
-                    let cipher_suite = ctx.cipher_suite.lock().await;
-                    if cipher_suite.is_none() {
-                        true
-                    } else if let Some(cipher_suite) = &*cipher_suite {
-                        !cipher_suite.is_initialized()
-                    } else {
-                        false
+                    match ctx.cipher_suite.lock() {
+                        Ok(cipher_suite) => {
+                            if cipher_suite.is_none() {
+                                true
+                            } else if let Some(cipher_suite) = &*cipher_suite {
+                                !cipher_suite.is_initialized()
+                            } else {
+                                false
+                            }
+                        }
+                        Err(err) => {
+                            error!(
+                                "{}: cipher_suite lock is poisoned with {}",
+                                srv_cli_str(ctx.is_client),
+                                err
+                            );
+                            true
+                        }
                     }
                 };
 
