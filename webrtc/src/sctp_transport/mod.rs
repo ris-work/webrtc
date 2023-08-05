@@ -361,7 +361,7 @@ impl RTCSctpTransport {
         collector: &StatsCollector,
         peer_connection_id: String,
     ) {
-        let dtls_transport = self.transport();
+        /*let dtls_transport = self.transport();
 
         // TODO: should this be collected?
         dtls_transport.collect_stats(collector).await;
@@ -389,7 +389,7 @@ impl RTCSctpTransport {
             reports.insert(stats.id.clone(), SCTPTransport(stats));
         }
 
-        collector.merge(reports);
+        collector.merge(reports);*/
     }
 
     pub(crate) async fn generate_and_set_data_channel_id(

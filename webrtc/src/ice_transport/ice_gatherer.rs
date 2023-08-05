@@ -288,7 +288,7 @@ impl RTCIceGatherer {
     }
 
     pub(crate) async fn collect_stats(&self, collector: &StatsCollector) {
-        if let Some(agent) = self.get_agent().await {
+        /*if let Some(agent) = self.get_agent().await {
             let mut reports = HashMap::new();
 
             for stats in agent.get_candidate_pairs_stats().await {
@@ -311,7 +311,7 @@ impl RTCIceGatherer {
             }
 
             collector.merge(reports);
-        }
+        }*/
     }
 }
 
