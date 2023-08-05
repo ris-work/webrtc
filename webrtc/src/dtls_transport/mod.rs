@@ -307,9 +307,9 @@ impl RTCDtlsTransport {
     }
 
     pub(crate) async fn collect_stats(&self, collector: &StatsCollector) {
-        for cert in &self.certificates {
+        /*for cert in &self.certificates {
             cert.collect_stats(collector).await;
-        }
+        }*/
     }
 
     async fn prepare_transport(

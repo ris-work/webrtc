@@ -18,7 +18,7 @@ use crate::mux::mux_func::MatchFunc;
 /// mux multiplexes packets on a single socket (RFC7983)
 
 /// The maximum amount of data that can be buffered before returning errors.
-const MAX_BUFFER_SIZE: usize = 1000 * 1000; // 1MB
+const MAX_BUFFER_SIZE: usize = 128 * 1024; // 128KiB
 
 /// Config collects the arguments to mux.Mux construction into
 /// a single structure
@@ -112,8 +112,9 @@ impl Mux {
             };
 
             if let Err(err) = Mux::dispatch(&buf[..n], &endpoints).await {
-                log::error!("mux: ending readLoop dispatch error {:?}", err);
-                break;
+                //Silently ignore buffer errors...
+                //log::error!("mux: [NOOP] ending readLoop dispatch error {:?}", err);
+                //break;
             }
         }
     }

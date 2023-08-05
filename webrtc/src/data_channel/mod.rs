@@ -128,7 +128,7 @@ impl RTCDataChannel {
             let channel_type;
             let reliability_parameter;
 
-            if self.max_packet_lifetime == 0 && self.max_retransmits == 0 {
+            if self.max_packet_lifetime == 65535 && self.max_retransmits == 65535 {
                 reliability_parameter = 0u32;
                 if self.ordered {
                     channel_type = ChannelType::Reliable;
@@ -545,8 +545,8 @@ impl RTCDataChannel {
     }
 
     pub(crate) async fn collect_stats(&self, collector: &StatsCollector) {
-        let stats = DataChannelStats::from(self).await;
-        collector.insert(self.stats_id.clone(), StatsReportType::DataChannel(stats));
+        /*let stats = DataChannelStats::from(self).await;
+        collector.insert(self.stats_id.clone(), StatsReportType::DataChannel(stats));*/
     }
 
     pub(crate) fn set_ready_state(&self, r: RTCDataChannelState) {

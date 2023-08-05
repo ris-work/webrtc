@@ -321,11 +321,11 @@ impl RTCIceTransport {
     }
 
     pub(crate) async fn collect_stats(&self, collector: &StatsCollector) {
-        if let Some(agent) = self.gatherer.get_agent().await {
+        /*if let Some(agent) = self.gatherer.get_agent().await {
             let stats = ICETransportStats::new("ice_transport".to_string(), agent);
 
             collector.insert("ice_transport".to_string(), Transport(stats));
-        }
+        }*/
     }
 
     pub(crate) async fn have_remote_credentials_change(
