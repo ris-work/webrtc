@@ -1,14 +1,10 @@
-use std::fmt;
+use super::{chunk_header::*, chunk_type::*, *};
+use crate::param::param_supported_extensions::ParamSupportedExtensions;
+use crate::param::{param_header::*, *};
+use crate::util::get_padding_size;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-
-use super::chunk_header::*;
-use super::chunk_type::*;
-use super::*;
-use crate::param::param_header::*;
-use crate::param::param_supported_extensions::ParamSupportedExtensions;
-use crate::param::*;
-use crate::util::get_padding_size;
+use std::fmt;
 
 ///chunkInitCommon represents an SCTP Chunk body of type INIT and INIT ACK
 ///
@@ -173,7 +169,7 @@ impl Chunk for ChunkInit {
         let mut params = vec![];
         let mut offset = CHUNK_HEADER_SIZE + INIT_CHUNK_MIN_LENGTH;
         let mut remaining = raw.len() as isize - offset as isize;
-        while remaining >= INIT_OPTIONAL_VAR_HEADER_LENGTH as isize {
+        while remaining > INIT_OPTIONAL_VAR_HEADER_LENGTH as isize {
             let p = build_param(&raw.slice(offset..CHUNK_HEADER_SIZE + header.value_length()))?;
             let p_len = PARAM_HEADER_LENGTH + p.value_length();
             let len_plus_padding = p_len + get_padding_size(p_len);

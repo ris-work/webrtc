@@ -75,8 +75,9 @@ pub(crate) fn sna16eq(i1: u16, i2: u16) -> bool {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use crate::error::Result;
+
+    use super::*;
 
     const DIV: isize = 16;
 

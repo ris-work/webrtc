@@ -1,9 +1,7 @@
-use std::fmt;
+use super::{param_type::*, *};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-
-use super::param_type::*;
-use super::*;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ParamHeader {

@@ -1,14 +1,12 @@
 #[cfg(test)]
 mod association_internal_test;
 
-use std::sync::atomic::AtomicBool;
-
-use async_trait::async_trait;
-
 use super::*;
-use crate::param::param_forward_tsn_supported::ParamForwardTsnSupported;
+
 use crate::param::param_type::ParamType;
 use crate::param::param_unrecognized::ParamUnrecognized;
+use async_trait::async_trait;
+use std::sync::atomic::AtomicBool;
 
 #[derive(Default)]
 pub struct AssociationInternal {
@@ -739,7 +737,7 @@ impl AssociationInternal {
             return Ok(vec![]);
         }
 
-        self.rwnd = i.advertised_receiver_window_credit;
+        self.rwnd = 4 * i.advertised_receiver_window_credit;
         log::debug!("[{}] initial rwnd={}", self.name, self.rwnd);
 
         // RFC 4690 Sec 7.2.1
@@ -771,12 +769,6 @@ impl AssociationInternal {
                         self.use_forward_tsn = true;
                     }
                 }
-            } else if param
-                .as_any()
-                .downcast_ref::<ParamForwardTsnSupported>()
-                .is_some()
-            {
-                self.use_forward_tsn = true;
             }
         }
         if !self.use_forward_tsn {
@@ -1248,8 +1240,8 @@ impl AssociationInternal {
             //      outstanding DATA chunk(s) acknowledged, and 2) the destination's
             //      path MTU.
             if !self.in_fast_recovery && self.pending_queue.len() > 0 {
-                self.cwnd += std::cmp::min(total_bytes_acked as u32, self.cwnd); // TCP way
-                                                                                 // self.cwnd += min32(uint32(total_bytes_acked), self.mtu) // SCTP way (slow)
+                self.cwnd += 400 * std::cmp::min(total_bytes_acked as u32, self.cwnd); // TCP way
+                                                                                       // self.cwnd += min32(uint32(total_bytes_acked), self.mtu) // SCTP way (slow)
                 log::trace!(
                     "[{}] updated cwnd={} ssthresh={} acked={} (SS)",
                     self.name,
@@ -1284,7 +1276,7 @@ impl AssociationInternal {
             //      reset partial_bytes_acked to (partial_bytes_acked - cwnd).
             if self.partial_bytes_acked >= self.cwnd && self.pending_queue.len() > 0 {
                 self.partial_bytes_acked -= self.cwnd;
-                self.cwnd += self.mtu;
+                self.cwnd += self.mtu * 400;
                 log::trace!(
                     "[{}] updated cwnd={} ssthresh={} acked={} (CA)",
                     self.name,
@@ -1436,12 +1428,12 @@ impl AssociationInternal {
         // bytes acked were already subtracted by markAsAcked() method
         let bytes_outstanding = self.inflight_queue.get_num_bytes() as u32;
         if bytes_outstanding >= d.advertised_receiver_window_credit {
-            self.rwnd = 0;
+            //self.rwnd = 0;
         } else {
-            self.rwnd = d.advertised_receiver_window_credit - bytes_outstanding;
+            //self.rwnd = d.advertised_receiver_window_credit - bytes_outstanding;
         }
 
-        self.process_fast_retransmission(d.cumulative_tsn_ack, htna, cum_tsn_ack_point_advanced)?;
+        //self.process_fast_retransmission(d.cumulative_tsn_ack, htna, cum_tsn_ack_point_advanced)?;
 
         if self.use_forward_tsn {
             // RFC 3758 Sec 3.5 C1
@@ -1887,7 +1879,7 @@ impl AssociationInternal {
                 break; // would exceed cwnd
             }
 
-            if data_len > self.rwnd as usize {
+            if data_len > 4 * self.rwnd as usize {
                 break; // no more rwnd
             }
 
@@ -2008,7 +2000,7 @@ impl AssociationInternal {
         let mut bytes_to_send = 0;
         let mut done = false;
         let mut i = 0;
-        while !done {
+        /*while !done {
             let tsn = self.cumulative_tsn_ack_point + i + 1;
             if let Some(c) = self.inflight_queue.get_mut(tsn) {
                 if !c.retransmit {
@@ -2047,7 +2039,7 @@ impl AssociationInternal {
                 chunks.push(c.clone());
             }
             i += 1;
-        }
+        }*/
 
         self.bundle_data_chunks_into_packets(chunks)
     }
@@ -2293,7 +2285,7 @@ impl RtxTimerObserver for AssociationInternal {
                 //      cwnd = 1*MTU
 
                 self.ssthresh = std::cmp::max(self.cwnd / 2, 4 * self.mtu);
-                self.cwnd = self.mtu;
+                self.cwnd = 10 * self.mtu;
                 log::trace!(
                     "[{}] updated cwnd={} ssthresh={} inflight={} (RTO)",
                     self.name,

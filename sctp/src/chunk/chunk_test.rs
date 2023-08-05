@@ -1,8 +1,9 @@
+use super::*;
+
 ///////////////////////////////////////////////////////////////////
 //chunk_type_test
 ///////////////////////////////////////////////////////////////////
 use super::chunk_type::*;
-use super::*;
 
 #[test]
 fn test_chunk_type_string() -> Result<()> {
@@ -102,10 +103,9 @@ fn test_abort_chunk_many_error_causes() -> Result<()> {
 ///////////////////////////////////////////////////////////////////
 //chunk_error_test
 ///////////////////////////////////////////////////////////////////
+use super::chunk_error::*;
 use bytes::BufMut;
 use lazy_static::lazy_static;
-
-use super::chunk_error::*;
 
 const CHUNK_FLAGS: u8 = 0x00;
 static ORG_UNRECOGNIZED_CHUNK: Bytes =

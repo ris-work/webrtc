@@ -1,10 +1,7 @@
-use std::fmt;
+use super::{chunk_header::*, chunk_type::*, *};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-
-use super::chunk_header::*;
-use super::chunk_type::*;
-use super::*;
+use std::fmt;
 
 ///chunkSelectiveAck represents an SCTP Chunk of type SACK
 ///

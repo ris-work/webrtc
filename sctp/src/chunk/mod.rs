@@ -19,14 +19,12 @@ pub(crate) mod chunk_shutdown_complete;
 pub(crate) mod chunk_type;
 pub(crate) mod chunk_unknown;
 
-use std::any::Any;
-use std::fmt;
-use std::marker::Sized;
-
-use bytes::{Bytes, BytesMut};
+use crate::error::{Error, Result};
 use chunk_header::*;
 
-use crate::error::{Error, Result};
+use bytes::{Bytes, BytesMut};
+use std::marker::Sized;
+use std::{any::Any, fmt};
 
 pub(crate) trait Chunk: fmt::Display + fmt::Debug {
     fn header(&self) -> ChunkHeader;

@@ -1,13 +1,9 @@
-use std::fmt;
+use super::{chunk_header::*, chunk_type::*, *};
+use crate::param::{param_header::*, *};
+use crate::util::get_padding_size;
 
 use bytes::{Bytes, BytesMut};
-
-use super::chunk_header::*;
-use super::chunk_type::*;
-use super::*;
-use crate::param::param_header::*;
-use crate::param::*;
-use crate::util::get_padding_size;
+use std::fmt;
 
 ///https://tools.ietf.org/html/rfc6525#section-3.1
 ///chunkReconfig represents an SCTP Chunk used to reconfigure streams.

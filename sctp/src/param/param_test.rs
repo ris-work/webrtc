@@ -1,8 +1,9 @@
+use super::*;
+
 ///////////////////////////////////////////////////////////////////
 //param_type_test
 ///////////////////////////////////////////////////////////////////
 use super::param_type::*;
-use super::*;
 
 #[test]
 fn test_parse_param_type_success() -> Result<()> {
@@ -166,9 +167,8 @@ fn test_param_outgoing_reset_request_failure() -> Result<()> {
 ///////////////////////////////////////////////////////////////////
 //param_reconfig_response_test
 ///////////////////////////////////////////////////////////////////
-use bytes::Buf;
-
 use super::param_reconfig_response::*;
+use bytes::Buf;
 
 static CHUNK_RECONFIG_RESPONCE: Bytes =
     Bytes::from_static(&[0x0, 0x10, 0x0, 0xc, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x1]);

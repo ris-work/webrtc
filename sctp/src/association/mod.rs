@@ -4,19 +4,6 @@ mod association_test;
 mod association_internal;
 mod association_stats;
 
-use std::collections::{HashMap, VecDeque};
-use std::fmt;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::SystemTime;
-
-use association_internal::*;
-use association_stats::*;
-use bytes::{Bytes, BytesMut};
-use rand::random;
-use tokio::sync::{broadcast, mpsc, Mutex, Semaphore};
-use util::Conn;
-
 use crate::chunk::chunk_abort::ChunkAbort;
 use crate::chunk::chunk_cookie_ack::ChunkCookieAck;
 use crate::chunk::chunk_cookie_echo::ChunkCookieEcho;
@@ -49,6 +36,19 @@ use crate::stream::*;
 use crate::timer::ack_timer::*;
 use crate::timer::rtx_timer::*;
 use crate::util::*;
+
+use association_internal::*;
+use association_stats::*;
+
+use bytes::{Bytes, BytesMut};
+use rand::random;
+use std::collections::{HashMap, VecDeque};
+use std::fmt;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::SystemTime;
+use tokio::sync::{broadcast, mpsc, Mutex, Semaphore};
+use util::Conn;
 
 pub(crate) const RECEIVE_MTU: usize = 8192;
 /// MTU for inbound packet (from DTLS)
@@ -107,14 +107,19 @@ impl fmt::Display for AssociationState {
 }
 
 /// retransmission timer IDs
-#[derive(Default, Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum RtxTimerId {
-    #[default]
     T1Init,
     T1Cookie,
     T2Shutdown,
     T3RTX,
     Reconfig,
+}
+
+impl Default for RtxTimerId {
+    fn default() -> Self {
+        RtxTimerId::T1Init
+    }
 }
 
 impl fmt::Display for RtxTimerId {
@@ -131,12 +136,16 @@ impl fmt::Display for RtxTimerId {
 }
 
 /// ack mode (for testing)
-#[derive(Default, Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum AckMode {
-    #[default]
     Normal,
     NoDelay,
     AlwaysDelay,
+}
+impl Default for AckMode {
+    fn default() -> Self {
+        AckMode::Normal
+    }
 }
 
 impl fmt::Display for AckMode {
@@ -151,12 +160,17 @@ impl fmt::Display for AckMode {
 }
 
 /// ack transmission state
-#[derive(Default, Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum AckState {
-    #[default]
-    Idle, // ack timer is off
+    Idle,      // ack timer is off
     Immediate, // will send ack immediately
     Delay,     // ack timer is on (ack is being delayed)
+}
+
+impl Default for AckState {
+    fn default() -> Self {
+        AckState::Idle
+    }
 }
 
 impl fmt::Display for AckState {
