@@ -1,0 +1,15 @@
+[package]
+name = "hub"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+util = { path = "../../../util", package = "webrtc-util", default-features = false, features = [
+    "conn"
+] }
+dtls = { package = "webrtc-dtls", path = "../../" }
+
+tokio = { version = "1", features = ["full"] }
+rcgen = { version = "0.10", features = ["pem", "x509-parser"] }
+rustls = "0.19"
+thiserror = "1"
