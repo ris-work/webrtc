@@ -148,7 +148,7 @@ mod test {
             if let Some(s1sub1) = s1.checked_sub(1) {
                 assert!(
                     !sna32eq(s1, s1sub1),
-                    "s1 == s1-1 hould be false: s1={s1} s1-1={s1sub1}"
+                    "s1 == s1-1 should be false: s1={s1} s1-1={s1sub1}"
                 );
             }
 
@@ -229,7 +229,7 @@ mod test {
             if let Some(s1sub1) = s1.checked_sub(1) {
                 assert!(
                     !sna16eq(s1, s1sub1),
-                    "s1 == s1-1 hould be false: s1={s1} s1-1={s1sub1}"
+                    "s1 == s1-1 should be false: s1={s1} s1-1={s1sub1}"
                 );
             }
 

@@ -1753,7 +1753,7 @@ impl AssociationInternal {
             }
             Ok(())
         } else {
-            Err(Error::ErrParamterType)
+            Err(Error::ErrParameterType)
         }
     }
 
@@ -1838,7 +1838,7 @@ impl AssociationInternal {
         unordered: bool,
     ) -> Option<ChunkPayloadData> {
         if let Some(mut c) = self.pending_queue.pop(beginning_fragment, unordered) {
-            // Mark all fragements are in-flight now
+            // Mark all fragments are in-flight now
             if c.ending_fragment {
                 c.set_all_inflight();
             }
