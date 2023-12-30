@@ -27,7 +27,7 @@ turn = { version = "0.7", path = "../turn" }
 util = { version = "0.8", path = "../util", package = "webrtc-util" }
 
 arc-swap = "1"
-tokio = { version = "1.32.0", features = ["full"] }
+tokio = { version = "1.35.1", features = ["full"] }
 log = "0.4"
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
@@ -36,11 +36,11 @@ rand = "0.8"
 bytes = "1"
 thiserror = "1"
 waitgroup = "0.1"
-regex = "1.9.5"
+regex = "1.10.2"
 smol_str = { version = "0.2", features = ["serde"] }
 url = "2"
 rustls = { version = "0.21", features = ["dangerous_configuration"]}
-rcgen = { version = "0.11", features = ["pem", "x509-parser"]}
+rcgen = { version = "0.12", features = ["pem", "x509-parser"]}
 ring = "0.17"
 sha2 = "0.10"
 lazy_static = "1.4"
