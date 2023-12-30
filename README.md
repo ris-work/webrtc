@@ -3,10 +3,10 @@
  <br>
 </h1>
 <p align="center">
- <a href="https://github.com/webrtc-rs/webrtc/actions"> 
-  <img src="https://github.com/webrtc-rs/webrtc/workflows/webrtc/badge.svg?branch=master">
- </a> 
- <a href="https://codecov.io/gh/webrtc-rs/webrtc"> 
+ <a href="https://github.com/webrtc-rs/webrtc/actions">
+  <img src="https://github.com/webrtc-rs/webrtc/workflows/cargo/badge.svg?branch=master">
+ </a>
+ <a href="https://codecov.io/gh/webrtc-rs/webrtc">
   <img src="https://codecov.io/gh/webrtc-rs/webrtc/branch/master/graph/badge.svg">
  </a>
  <a href="https://deps.rs/repo/github/webrtc-rs/webrtc"> 
