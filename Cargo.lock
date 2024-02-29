@@ -1210,7 +1210,7 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 name = "hub"
 version = "0.1.0"
 dependencies = [
- "rcgen",
+ "rcgen 0.11.3",
  "rustls",
  "rustls-pemfile",
  "thiserror",
@@ -1905,6 +1905,19 @@ checksum = "52c4f3084aa3bc7dfbba4eff4fab2a54db4324965d8872ab933565e6fbd83bc6"
 dependencies = [
  "pem",
  "ring 0.16.20",
+ "time",
+ "x509-parser",
+ "yasna",
+]
+
+[[package]]
+name = "rcgen"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48406db8ac1f3cbc7dcdb56ec355343817958a356ff430259bb07baf7607e1e1"
+dependencies = [
+ "pem",
+ "ring 0.17.7",
  "time",
  "x509-parser",
  "yasna",
@@ -2768,7 +2781,7 @@ dependencies = [
  "log",
  "pem",
  "rand",
- "rcgen",
+ "rcgen 0.12.1",
  "regex",
  "ring 0.17.7",
  "rtcp",
@@ -2849,7 +2862,7 @@ dependencies = [
  "pem",
  "rand",
  "rand_core",
- "rcgen",
+ "rcgen 0.11.3",
  "ring 0.17.7",
  "rustls",
  "sec1",

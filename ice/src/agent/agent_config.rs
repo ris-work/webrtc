@@ -11,10 +11,10 @@ use crate::udp_network::UDPNetwork;
 use crate::url::*;
 
 /// The interval at which the agent performs candidate checks in the connecting phase.
-pub(crate) const DEFAULT_CHECK_INTERVAL: Duration = Duration::from_millis(200);
+pub(crate) const DEFAULT_CHECK_INTERVAL: Duration = Duration::from_millis(400);
 
 /// The interval used to keep candidates alive.
-pub(crate) const DEFAULT_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(2);
+pub(crate) const DEFAULT_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(4);
 
 /// The default time till an Agent transitions disconnected.
 pub(crate) const DEFAULT_DISCONNECTED_TIMEOUT: Duration = Duration::from_secs(5);
@@ -41,7 +41,7 @@ pub(crate) const DEFAULT_MAX_BINDING_REQUESTS: u16 = 7;
 pub(crate) const MAX_BUFFER_SIZE: usize = 1000 * 1000; // 1MB
 
 /// Wait time before binding requests can be deleted.
-pub(crate) const MAX_BINDING_REQUEST_TIMEOUT: Duration = Duration::from_millis(4000);
+pub(crate) const MAX_BINDING_REQUEST_TIMEOUT: Duration = Duration::from_millis(7000);
 
 pub(crate) fn default_candidate_types() -> Vec<CandidateType> {
     vec![

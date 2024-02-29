@@ -142,7 +142,7 @@ impl AgentInternal {
 
             // How often should we send keepalive packets?
             // 0 means never
-            keepalive_interval: Duration::from_secs(0),
+            keepalive_interval: Duration::from_secs(2),
 
             // How often should we run our internal taskLoop to check for state changes when connecting
             check_interval: Duration::from_secs(0),
@@ -613,6 +613,7 @@ impl AgentInternal {
     }
 
     pub(crate) async fn close(&self) -> Result<()> {
+        log::debug!("Closing candidate: {}", self.get_name());
         {
             let mut done_tx = self.done_tx.lock().await;
             if done_tx.is_none() {
@@ -653,6 +654,7 @@ impl AgentInternal {
     ///
     /// This is used for restarts, failures and on close.
     pub(crate) async fn delete_all_candidates(&self) {
+        log::debug!{"Deleting all candidates...."};
         {
             let mut local_candidates = self.local_candidates.lock().await;
             for cs in local_candidates.values_mut() {
@@ -698,10 +700,16 @@ impl AgentInternal {
         let remote_candidates = self.remote_candidates.lock().await;
         if let Some(cands) = remote_candidates.get(&network_type) {
             for c in cands {
-                if c.address() == ip.to_string() && c.port() == port {
+                if c.address() == ip.to_string() && c.port() == port { 
                     return Some(c.clone());
                 }
-            }
+            } 
+            for c in cands {
+                if c.port() == port { 
+                    log::debug!{"Unable to match by IP:port, matched by port: {}:{} with {}:{}", ip.to_string(), port, c.address(), c.port()};
+                    return Some(c.clone());
+                }
+            } 
         }
         None
     }
