@@ -14,16 +14,16 @@ use crate::url::*;
 pub(crate) const DEFAULT_CHECK_INTERVAL: Duration = Duration::from_millis(400);
 
 /// The interval used to keep candidates alive.
-pub(crate) const DEFAULT_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(4);
+pub(crate) const DEFAULT_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(2);
 
 /// The default time till an Agent transitions disconnected.
-pub(crate) const DEFAULT_DISCONNECTED_TIMEOUT: Duration = Duration::from_secs(5);
+pub(crate) const DEFAULT_DISCONNECTED_TIMEOUT: Duration = Duration::from_secs(8);
 
 /// The default time till an Agent transitions to failed after disconnected.
-pub(crate) const DEFAULT_FAILED_TIMEOUT: Duration = Duration::from_secs(25);
+pub(crate) const DEFAULT_FAILED_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Wait time before nominating a host candidate.
-pub(crate) const DEFAULT_HOST_ACCEPTANCE_MIN_WAIT: Duration = Duration::from_secs(0);
+pub(crate) const DEFAULT_HOST_ACCEPTANCE_MIN_WAIT: Duration = Duration::from_millis(100);
 
 /// Wait time before nominating a srflx candidate.
 pub(crate) const DEFAULT_SRFLX_ACCEPTANCE_MIN_WAIT: Duration = Duration::from_millis(500);
@@ -35,7 +35,7 @@ pub(crate) const DEFAULT_PRFLX_ACCEPTANCE_MIN_WAIT: Duration = Duration::from_mi
 pub(crate) const DEFAULT_RELAY_ACCEPTANCE_MIN_WAIT: Duration = Duration::from_millis(2000);
 
 /// Max binding request before considering a pair failed.
-pub(crate) const DEFAULT_MAX_BINDING_REQUESTS: u16 = 7;
+pub(crate) const DEFAULT_MAX_BINDING_REQUESTS: u16 = 10;
 
 /// The number of bytes that can be buffered before we start to error.
 pub(crate) const MAX_BUFFER_SIZE: usize = 1000 * 1000; // 1MB
@@ -47,6 +47,7 @@ pub(crate) fn default_candidate_types() -> Vec<CandidateType> {
     vec![
         CandidateType::Host,
         CandidateType::ServerReflexive,
+        CandidateType::PeerReflexive,
         CandidateType::Relay,
     ]
 }
