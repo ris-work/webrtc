@@ -3,12 +3,13 @@
 // Silence warning on `..Default::default()` with no effect:
 #![allow(clippy::needless_update)]
 
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
 use async_trait::async_trait;
+use portable_atomic::AtomicU32;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
-
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
 
 ///////////////////////////////////////////////////////////////////
 //ack_timer_test
@@ -16,9 +17,8 @@ use std::sync::Arc;
 use super::ack_timer::*;
 
 mod test_ack_timer {
-    use crate::error::Result;
-
     use super::*;
+    use crate::error::Result;
 
     struct TestAckTimerObserver {
         ncbs: Arc<AtomicU32>,
@@ -77,9 +77,8 @@ mod test_ack_timer {
 use super::rtx_timer::*;
 
 mod test_rto_manager {
-    use crate::error::Result;
-
     use super::*;
+    use crate::error::Result;
 
     #[tokio::test]
     async fn test_rto_manager_initial_values() -> Result<()> {
@@ -162,12 +161,13 @@ mod test_rto_manager {
 //TODO: remove this conditional test
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 mod test_rtx_timer {
+    use std::time::SystemTime;
+
+    use tokio::sync::mpsc;
+
     use super::*;
     use crate::association::RtxTimerId;
     use crate::error::Result;
-
-    use std::time::SystemTime;
-    use tokio::sync::mpsc;
 
     struct TestTimerObserver {
         ncbs: Arc<AtomicU32>,

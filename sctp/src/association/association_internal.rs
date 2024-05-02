@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod association_internal_test;
 
+use async_trait::async_trait;
+use portable_atomic::AtomicBool;
+
 use super::*;
 
 use crate::param::param_type::ParamType;

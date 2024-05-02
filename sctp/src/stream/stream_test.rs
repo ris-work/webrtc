@@ -1,8 +1,10 @@
-use super::*;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWriteExt;
+
+use portable_atomic::AtomicU32;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+use super::*;
 
 #[test]
 fn test_stream_buffered_amount() -> Result<()> {

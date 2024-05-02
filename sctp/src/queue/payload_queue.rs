@@ -1,3 +1,9 @@
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
+use portable_atomic::AtomicUsize;
+
 use crate::chunk::chunk_payload_data::ChunkPayloadData;
 use crate::chunk::chunk_selective_ack::GapAckBlock;
 use crate::util::*;

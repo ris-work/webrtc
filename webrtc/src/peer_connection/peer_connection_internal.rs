@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
-use std::sync::atomic::AtomicIsize;
 use std::sync::Weak;
 
 use arc_swap::ArcSwapOption;
+use portable_atomic::AtomicIsize;
 use smol_str::SmolStr;
 use tokio::time::Instant;
 use util::Unmarshal;
@@ -15,7 +15,7 @@ use crate::stats::{
     StatsReportType,
 };
 use crate::track::TrackStream;
-use crate::{SDES_REPAIR_RTP_STREAM_ID_URI, SDP_ATTRIBUTE_RID};
+use crate::SDP_ATTRIBUTE_RID;
 
 pub(crate) struct PeerConnectionInternal {
     /// a value containing the last known greater mid value
@@ -940,7 +940,7 @@ impl PeerConnectionInternal {
         let (rsid_extension_id, _, _) = self
             .media_engine
             .get_header_extension_id(RTCRtpHeaderExtensionCapability {
-                uri: SDES_REPAIR_RTP_STREAM_ID_URI.to_owned(),
+                uri: ::sdp::extmap::SDES_REPAIR_RTP_STREAM_ID_URI.to_owned(),
             })
             .await;
 
@@ -1068,8 +1068,8 @@ impl PeerConnectionInternal {
         on_track_handler: Arc<ArcSwapOption<Mutex<OnTrackHdlrFn>>>,
     ) {
         receiver.start(incoming).await;
-        for t in receiver.tracks().await {
-            if t.ssrc() == 0 {
+        for track in receiver.tracks().await {
+            if track.ssrc() == 0 {
                 return;
             }
 
@@ -1077,31 +1077,29 @@ impl PeerConnectionInternal {
             let transceiver = Arc::clone(&transceiver);
             let on_track_handler = Arc::clone(&on_track_handler);
             tokio::spawn(async move {
-                if let Some(track) = receiver.track().await {
-                    let mut b = vec![0u8; receive_mtu];
-                    let pkt = match track.peek(&mut b).await {
-                        Ok((pkt, _)) => pkt,
-                        Err(err) => {
-                            log::warn!(
-                                "Could not determine PayloadType for SSRC {} ({})",
-                                track.ssrc(),
-                                err
-                            );
-                            return;
-                        }
-                    };
-
-                    if let Err(err) = track.check_and_update_track(&pkt).await {
+                let mut b = vec![0u8; receive_mtu];
+                let pkt = match track.peek(&mut b).await {
+                    Ok((pkt, _)) => pkt,
+                    Err(err) => {
                         log::warn!(
-                            "Failed to set codec settings for track SSRC {} ({})",
+                            "Could not determine PayloadType for SSRC {} ({})",
                             track.ssrc(),
                             err
                         );
                         return;
                     }
+                };
 
-                    RTCPeerConnection::do_track(on_track_handler, track, receiver, transceiver);
+                if let Err(err) = track.check_and_update_track(&pkt).await {
+                    log::warn!(
+                        "Failed to set codec settings for track SSRC {} ({})",
+                        track.ssrc(),
+                        err
+                    );
+                    return;
                 }
+
+                RTCPeerConnection::do_track(on_track_handler, track, receiver, transceiver);
             });
         }
     }
@@ -1279,7 +1277,7 @@ impl PeerConnectionInternal {
                     stats_type: RTCStatsType::InboundRTP,
                     id: id.clone(),
                     ssrc,
-                    kind,
+                    kind: kind.to_owned(),
                     packets_received,
                     track_identifier: info.track_id,
                     mid: info.mid,
@@ -1307,7 +1305,7 @@ impl PeerConnectionInternal {
                     id,
 
                     ssrc,
-                    kind,
+                    kind: kind.to_owned(),
 
                     packets_sent: remote_packets_sent as u64,
                     bytes_sent: remote_bytes_sent as u64,
@@ -1420,7 +1418,7 @@ impl PeerConnectionInternal {
                     track_identifier,
                     id: id.clone(),
                     ssrc,
-                    kind,
+                    kind: kind.to_owned(),
                     packets_sent,
                     mid,
                     rid,
@@ -1447,7 +1445,7 @@ impl PeerConnectionInternal {
                     stats_type: RTCStatsType::RemoteInboundRTP,
                     id,
                     ssrc,
-                    kind,
+                    kind: kind.to_owned(),
 
                     packets_received: remote_inbound_packets_received,
                     packets_lost: remote_inbound_packets_lost as i64,

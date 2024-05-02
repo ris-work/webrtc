@@ -1,19 +1,23 @@
 #[cfg(test)]
 pub(crate) mod peer_connection_test;
 
+/// Custom media-related options, such as `voice_activity_detection`, which are negotiated while establishing connection.
+pub mod offer_answer_options;
+
+/// [`RTCSessionDescription`] - wrapper for SDP text and negotiations stage ([`RTCSdpType`]: offer - pranswer - answer - rollback).
+pub mod sdp;
+
 pub mod certificate;
 pub mod configuration;
-pub mod offer_answer_options;
 pub(crate) mod operation;
 mod peer_connection_internal;
 pub mod peer_connection_state;
 pub mod policy;
-pub mod sdp;
 pub mod signaling_state;
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -25,6 +29,7 @@ use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use interceptor::{stats, Attributes, Interceptor, RTCPWriter};
 use peer_connection_internal::*;
+use portable_atomic::{AtomicBool, AtomicU64, AtomicU8};
 use rand::{thread_rng, Rng};
 use rcgen::KeyPair;
 use smol_str::SmolStr;
@@ -278,7 +283,7 @@ impl RTCPeerConnection {
                     .map_err(|_| Error::ErrCertificateExpired)?;
             }
         } else {
-            let kp = KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256)?;
+            let kp = KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256)?;
             let cert = RTCCertificate::from_key_pair(kp)?;
             configuration.certificates = vec![cert];
         };
@@ -1960,7 +1965,7 @@ impl RTCPeerConnection {
 
         // https://www.w3.org/TR/webrtc/#dom-rtcpeerconnection-close (step #8, #9, #10)
         if let Err(err) = self.internal.ice_transport.stop().await {
-            close_errs.push(Error::new(format!("dtls_transport: {err}")));
+            close_errs.push(Error::new(format!("ice_transport: {err}")));
         }
 
         // https://www.w3.org/TR/webrtc/#dom-rtcpeerconnection-close (step #11)
