@@ -2326,7 +2326,7 @@ impl RtxTimerObserver for AssociationInternal {
                 //      cwnd = 1*MTU
 
                 self.ssthresh = std::cmp::max(self.cwnd / 2, 4 * self.mtu);
-                self.cwnd = 400 * self.mtu;
+                self.cwnd = 20 * self.mtu;
                 log::trace!(
                     "[{}] updated cwnd={} ssthresh={} inflight={} (RTO)",
                     self.name,
