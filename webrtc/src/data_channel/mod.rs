@@ -134,7 +134,7 @@ impl RTCDataChannel {
                 if self.ordered {
                     channel_type = ChannelType::Reliable;
                 } else {
-                    channel_type = ChannelType::ReliableUnordered;
+                    channel_type = ChannelType::PartialReliableRexmitUnordered;
                 }
             } else if self.max_retransmits != 0 {
                 reliability_parameter = self.max_retransmits as u32;
@@ -441,19 +441,22 @@ impl RTCDataChannel {
     /// Ordered returns true if the DataChannel is ordered, and false if
     /// out-of-order delivery is allowed.
     pub fn ordered(&self) -> bool {
-        self.ordered
+        //self.ordered
+        false
     }
 
     /// max_packet_lifetime represents the length of the time window (msec) during
     /// which transmissions and retransmissions may occur in unreliable mode.
     pub fn max_packet_lifetime(&self) -> u16 {
-        self.max_packet_lifetime
+        //self.max_packet_lifetime
+        0
     }
 
     /// max_retransmits represents the maximum number of retransmissions that are
     /// attempted in unreliable mode.
     pub fn max_retransmits(&self) -> u16 {
-        self.max_retransmits
+        //self.max_retransmits
+        0
     }
 
     /// protocol represents the name of the sub-protocol used with this
