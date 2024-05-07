@@ -201,7 +201,7 @@ impl RTPReceiverInternal {
     ) -> Result<(Vec<Box<dyn rtcp::packet::Packet + Send + Sync>>, Attributes)> {
         let mut state_watch_rx = self.state_tx.subscribe();
 
-        // Ensure we are running or paused. When paused we still recevie RTCP even if RTP traffic
+        // Ensure we are running or paused. When paused we still receive RTCP even if RTP traffic
         // isn't flowing.
         State::wait_for(&mut state_watch_rx, &[State::Started, State::Paused]).await?;
 
@@ -484,16 +484,6 @@ impl RTCRtpReceiver {
             let current_track = &t.track;
             current_track.set_codec(codec.clone());
             current_track.set_params(params.clone());
-        }
-    }
-
-    /// track returns the RtpTransceiver TrackRemote
-    pub async fn track(&self) -> Option<Arc<TrackRemote>> {
-        let tracks = self.internal.tracks.read().await;
-        if tracks.len() != 1 {
-            None
-        } else {
-            tracks.first().map(|t| Arc::clone(&t.track))
         }
     }
 

@@ -4,10 +4,11 @@ mod nat_test;
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::ops::Add;
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::SystemTime;
 
+use portable_atomic::AtomicU16;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 
@@ -17,7 +18,7 @@ use crate::vnet::net::UDP_STR;
 
 const DEFAULT_NAT_MAPPING_LIFE_TIME: Duration = Duration::from_secs(30);
 
-// EndpointDependencyType defines a type of behavioral dependendency on the
+// EndpointDependencyType defines a type of behavioral dependency on the
 // remote endpoint's IP address or port number. This is used for the two
 // kinds of behaviors:
 //  - Port Mapping behavior
@@ -112,7 +113,7 @@ impl NetworkAddressTranslator {
             nat_type.mapping_life_time = Duration::from_secs(0);
 
             if config.mapped_ips.is_empty() {
-                return Err(Error::ErrNatRequriesMapping);
+                return Err(Error::ErrNatRequiresMapping);
             }
             if config.mapped_ips.len() != config.local_ips.len() {
                 return Err(Error::ErrMismatchLengthIp);
@@ -233,7 +234,7 @@ impl NetworkAddressTranslator {
                             )),
                         }
                     } else {
-                        return Err(Error::ErrNatRequriesMapping);
+                        return Err(Error::ErrNatRequiresMapping);
                     };
 
                     {
@@ -400,7 +401,7 @@ impl NetworkAddressTranslator {
         }
 
         let outbound_map = self.outbound_map.lock().await;
-        outbound_map.get(o_key).map(Arc::clone)
+        outbound_map.get(o_key).cloned()
     }
 
     // caller must hold the mutex
@@ -439,7 +440,7 @@ impl NetworkAddressTranslator {
         }
 
         let inbound_map = self.inbound_map.lock().await;
-        inbound_map.get(i_key).map(Arc::clone)
+        inbound_map.get(i_key).cloned()
     }
 
     // caller must hold the mutex

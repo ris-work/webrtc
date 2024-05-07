@@ -2,10 +2,11 @@
 mod conn_test;
 
 use std::net::{IpAddr, SocketAddr};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use portable_atomic::AtomicBool;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::conn::Conn;
@@ -26,7 +27,7 @@ pub(crate) trait ConnObserver {
 pub(crate) type ChunkChTx = mpsc::Sender<Box<dyn Chunk + Send + Sync>>;
 
 /// UDPConn is the implementation of the Conn and PacketConn interfaces for UDP network connections.
-/// comatible with net.PacketConn and net.Conn
+/// compatible with net.PacketConn and net.Conn
 pub(crate) struct UdpConn {
     loc_addr: SocketAddr,
     rem_addr: RwLock<Option<SocketAddr>>,
@@ -155,5 +156,9 @@ impl Conn for UdpConn {
         }
 
         Ok(())
+    }
+
+    fn as_any(&self) -> &(dyn std::any::Any + Send + Sync) {
+        self
     }
 }

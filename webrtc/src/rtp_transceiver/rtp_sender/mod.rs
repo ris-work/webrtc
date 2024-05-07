@@ -1,12 +1,13 @@
 #[cfg(test)]
 mod rtp_sender_test;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 
 use ice::rand::generate_crypto_random_string;
 use interceptor::stream_info::StreamInfo;
 use interceptor::{Attributes, Interceptor, RTCPReader, RTPWriter};
+use portable_atomic::AtomicBool;
 use tokio::sync::{mpsc, Mutex, Notify};
 use util::sync::Mutex as SyncMutex;
 
@@ -106,7 +107,7 @@ pub struct RTCRtpSender {
     /// The id of the initial track, even if we later change to a different
     /// track id should be use when negotiating.
     pub(crate) initial_track_id: std::sync::Mutex<Option<String>>,
-    /// AssociatedMediaStreamIds from the WebRTC specifcations
+    /// AssociatedMediaStreamIds from the WebRTC specifications
     pub(crate) associated_media_stream_ids: std::sync::Mutex<Vec<String>>,
 
     rtp_transceiver: SyncMutex<Option<Weak<RTCRtpTransceiver>>>,

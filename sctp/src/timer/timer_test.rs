@@ -3,10 +3,11 @@
 // Silence warning on `..Default::default()` with no effect:
 #![allow(clippy::needless_update)]
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use portable_atomic::AtomicU32;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
@@ -93,9 +94,7 @@ mod test_rto_manager {
     #[tokio::test]
     async fn test_rto_manager_rto_calculation_small_rtt() -> Result<()> {
         let mut m = RtoManager::new();
-        let exp = vec![
-            1800, 1500, 1275, 1106, 1000, // capped at RTO.Min
-        ];
+        let exp = [1800, 1500, 1275, 1106, 1000];
 
         for i in 0..5 {
             m.set_new_rtt(600);
@@ -109,7 +108,7 @@ mod test_rto_manager {
     #[tokio::test]
     async fn test_rto_manager_rto_calculation_large_rtt() -> Result<()> {
         let mut m = RtoManager::new();
-        let exp = vec![
+        let exp = [
             60000, // capped at RTO.Max
             60000, // capped at RTO.Max
             60000, // capped at RTO.Max

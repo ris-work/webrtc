@@ -1,19 +1,23 @@
 #[cfg(test)]
 pub(crate) mod peer_connection_test;
 
+/// Custom media-related options, such as `voice_activity_detection`, which are negotiated while establishing connection.
+pub mod offer_answer_options;
+
+/// [`RTCSessionDescription`] - wrapper for SDP text and negotiations stage ([`RTCSdpType`]: offer - pranswer - answer - rollback).
+pub mod sdp;
+
 pub mod certificate;
 pub mod configuration;
-pub mod offer_answer_options;
 pub(crate) mod operation;
 mod peer_connection_internal;
 pub mod peer_connection_state;
 pub mod policy;
-pub mod sdp;
 pub mod signaling_state;
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -25,6 +29,7 @@ use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use interceptor::{stats, Attributes, Interceptor, RTCPWriter};
 use peer_connection_internal::*;
+use portable_atomic::{AtomicBool, AtomicU64, AtomicU8};
 use rand::{thread_rng, Rng};
 use rcgen::KeyPair;
 use smol_str::SmolStr;
@@ -99,7 +104,7 @@ pub(crate) const MEDIA_SECTION_APPLICATION: &str = "application";
 
 const RUNES_ALPHA: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-/// math_rand_alpha generates a mathmatical random alphabet sequence of the requested length.
+/// math_rand_alpha generates a mathematical random alphabet sequence of the requested length.
 pub fn math_rand_alpha(n: usize) -> String {
     let mut rng = thread_rng();
 
@@ -278,7 +283,7 @@ impl RTCPeerConnection {
                     .map_err(|_| Error::ErrCertificateExpired)?;
             }
         } else {
-            let kp = KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256)?;
+            let kp = KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256)?;
             let cert = RTCCertificate::from_key_pair(kp)?;
             configuration.certificates = vec![cert];
         };
@@ -1327,7 +1332,7 @@ impl RTCPeerConnection {
             return Err(Error::ErrConnectionClosed);
         }
 
-        let is_renegotation = {
+        let is_renegotiation = {
             let current_remote_description = self.internal.current_remote_description.lock().await;
             current_remote_description.is_some()
         };
@@ -1491,7 +1496,7 @@ impl RTCPeerConnection {
 
             let (remote_ufrag, remote_pwd, candidates) = extract_ice_details(parsed).await?;
 
-            if is_renegotation
+            if is_renegotiation
                 && self
                     .internal
                     .ice_transport
@@ -1516,7 +1521,7 @@ impl RTCPeerConnection {
                     .await?;
             }
 
-            if is_renegotation {
+            if is_renegotiation {
                 if we_offer {
                     self.start_rtp_senders().await?;
 
@@ -1696,7 +1701,10 @@ impl RTCPeerConnection {
         {
             let rtp_transceivers = self.internal.rtp_transceivers.lock().await;
             for t in &*rtp_transceivers {
-                if !t.stopped.load(Ordering::SeqCst) && t.kind == track.kind() {
+                if !t.stopped.load(Ordering::SeqCst)
+                    && t.kind == track.kind()
+                    && track.id() == t.sender().await.id
+                {
                     let sender = t.sender().await;
                     if sender.track().await.is_none() {
                         if let Err(err) = sender.replace_track(Some(track)).await {
@@ -1957,7 +1965,7 @@ impl RTCPeerConnection {
 
         // https://www.w3.org/TR/webrtc/#dom-rtcpeerconnection-close (step #8, #9, #10)
         if let Err(err) = self.internal.ice_transport.stop().await {
-            close_errs.push(Error::new(format!("dtls_transport: {err}")));
+            close_errs.push(Error::new(format!("ice_transport: {err}")));
         }
 
         // https://www.w3.org/TR/webrtc/#dom-rtcpeerconnection-close (step #11)

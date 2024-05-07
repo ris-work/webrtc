@@ -51,11 +51,10 @@ fn test_extract_fingerprint() -> Result<()> {
     {
         let s = SessionDescription::default();
 
-        if let Err(err) = extract_fingerprint(&s) {
-            assert_eq!(err, Error::ErrSessionDescriptionNoFingerprint);
-        } else {
-            panic!();
-        }
+        assert_eq!(
+            extract_fingerprint(&s).expect_err("fingerprint absence must be detected"),
+            Error::ErrSessionDescriptionNoFingerprint
+        );
     }
 
     //"Invalid Fingerprint"
@@ -68,11 +67,10 @@ fn test_extract_fingerprint() -> Result<()> {
             ..Default::default()
         };
 
-        if let Err(err) = extract_fingerprint(&s) {
-            assert_eq!(err, Error::ErrSessionDescriptionInvalidFingerprint);
-        } else {
-            panic!();
-        }
+        assert_eq!(
+            extract_fingerprint(&s).expect_err("invalid fingerprint text must be detected"),
+            Error::ErrSessionDescriptionInvalidFingerprint
+        );
     }
 
     //"Conflicting Fingerprint"
@@ -92,11 +90,10 @@ fn test_extract_fingerprint() -> Result<()> {
             ..Default::default()
         };
 
-        if let Err(err) = extract_fingerprint(&s) {
-            assert_eq!(err, Error::ErrSessionDescriptionConflictingFingerprints);
-        } else {
-            panic!();
-        }
+        assert_eq!(
+            extract_fingerprint(&s).expect_err("mismatching fingerprint texts must be detected"),
+            Error::ErrSessionDescriptionConflictingFingerprints
+        );
     }
 
     Ok(())
@@ -120,11 +117,12 @@ async fn test_extract_ice_details() -> Result<()> {
             ..Default::default()
         };
 
-        if let Err(err) = extract_ice_details(&s).await {
-            assert_eq!(err, Error::ErrSessionDescriptionMissingIcePwd);
-        } else {
-            panic!();
-        }
+        assert_eq!(
+            extract_ice_details(&s)
+                .await
+                .expect_err("ICE requires password for authentication"),
+            Error::ErrSessionDescriptionMissingIcePwd
+        );
     }
 
     //"Missing ice-ufrag"
@@ -140,11 +138,12 @@ async fn test_extract_ice_details() -> Result<()> {
             ..Default::default()
         };
 
-        if let Err(err) = extract_ice_details(&s).await {
-            assert_eq!(err, Error::ErrSessionDescriptionMissingIceUfrag);
-        } else {
-            panic!();
-        }
+        assert_eq!(
+            extract_ice_details(&s)
+                .await
+                .expect_err("ICE requires 'user fragment' for authentication"),
+            Error::ErrSessionDescriptionMissingIceUfrag
+        );
     }
 
     //"ice details at session level"
@@ -216,11 +215,12 @@ async fn test_extract_ice_details() -> Result<()> {
             ..Default::default()
         };
 
-        if let Err(err) = extract_ice_details(&s).await {
-            assert_eq!(err, Error::ErrSessionDescriptionConflictingIceUfrag);
-        } else {
-            panic!();
-        }
+        assert_eq!(
+            extract_ice_details(&s)
+                .await
+                .expect_err("mismatching ICE ufrags must be detected"),
+            Error::ErrSessionDescriptionConflictingIceUfrag
+        );
     }
 
     //"Conflict pwd"
@@ -246,11 +246,12 @@ async fn test_extract_ice_details() -> Result<()> {
             ..Default::default()
         };
 
-        if let Err(err) = extract_ice_details(&s).await {
-            assert_eq!(err, Error::ErrSessionDescriptionConflictingIcePwd);
-        } else {
-            panic!();
-        }
+        assert_eq!(
+            extract_ice_details(&s)
+                .await
+                .expect_err("mismatching ICE passwords must be detected"),
+            Error::ErrSessionDescriptionConflictingIcePwd
+        );
     }
 
     Ok(())
@@ -567,7 +568,7 @@ async fn test_media_description_fingerprints() -> Result<()> {
     let api = APIBuilder::new().with_media_engine(m).build();
     let interceptor = api.interceptor_registry.build("")?;
 
-    let kp = KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256)?;
+    let kp = KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256)?;
     let certificate = RTCCertificate::from_key_pair(kp)?;
 
     let transport = Arc::new(RTCDtlsTransport::default());
@@ -702,8 +703,20 @@ async fn test_populate_sdp() -> Result<()> {
         )
         .await;
 
-        let mut rid_map = HashMap::new();
-        rid_map.insert("ridkey".to_owned(), "some".to_owned());
+        let rid_map = vec![
+            SimulcastRid {
+                id: "ridkey".to_owned(),
+                direction: SimulcastDirection::Recv,
+                params: "some".to_owned(),
+                paused: false,
+            },
+            SimulcastRid {
+                id: "ridpaused".to_owned(),
+                direction: SimulcastDirection::Recv,
+                params: "some2".to_owned(),
+                paused: true,
+            },
+        ];
         let media_sections = vec![MediaSection {
             id: "video".to_owned(),
             transceivers: vec![tr],
@@ -732,23 +745,33 @@ async fn test_populate_sdp() -> Result<()> {
         .await?;
 
         // Test contains rid map keys
-        let mut found = false;
+        let mut found = 0;
         for desc in &offer_sdp.media_descriptions {
             if desc.media_name.media != "video" {
                 continue;
             }
-            for a in &desc.attributes {
-                if a.key == SDP_ATTRIBUTE_RID {
-                    if let Some(value) = &a.value {
-                        if value.contains("ridkey") {
-                            found = true;
-                            break;
-                        }
-                    }
-                }
+
+            let rid_map = get_rids(desc);
+            if let Some(rid) = rid_map.iter().find(|rid| rid.id == "ridkey") {
+                assert!(!rid.paused, "Rid should be active");
+                assert_eq!(
+                    rid.direction,
+                    SimulcastDirection::Send,
+                    "Rid should be send"
+                );
+                found += 1;
+            }
+            if let Some(rid) = rid_map.iter().find(|rid| rid.id == "ridpaused") {
+                assert!(rid.paused, "Rid should be paused");
+                assert_eq!(
+                    rid.direction,
+                    SimulcastDirection::Send,
+                    "Rid should be send"
+                );
+                found += 1;
             }
         }
-        assert!(found, "Rid key should be present");
+        assert_eq!(found, 2, "All Rid key should be present");
     }
 
     //"SetCodecPreferences"
@@ -802,7 +825,7 @@ async fn test_populate_sdp() -> Result<()> {
             id: "video".to_owned(),
             transceivers: vec![tr],
             data: false,
-            rid_map: HashMap::new(),
+            rid_map: vec![],
             ..Default::default()
         }];
 
@@ -920,14 +943,14 @@ async fn test_populate_sdp_reject() -> Result<()> {
             id: "video".to_owned(),
             transceivers: vec![trv],
             data: false,
-            rid_map: HashMap::new(),
+            rid_map: vec![],
             ..Default::default()
         },
         MediaSection {
             id: "audio".to_owned(),
             transceivers: vec![tra],
             data: false,
-            rid_map: HashMap::new(),
+            rid_map: vec![],
             ..Default::default()
         },
     ];
@@ -1006,7 +1029,8 @@ fn test_get_rids() {
 
     assert!(!rids.is_empty(), "Rid mapping should be present");
 
-    assert!(rids.get("f").is_some(), "rid values should contain 'f'");
+    let f = rids.iter().find(|rid| rid.id == "f");
+    assert!(f.is_some(), "rid values should contain 'f'");
 }
 
 #[test]

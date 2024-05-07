@@ -7,12 +7,13 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::ops::{Add, Sub};
 use std::pin::Pin;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::SystemTime;
 
 use async_trait::async_trait;
 use ipnet::*;
+use portable_atomic::AtomicU64;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
 
@@ -344,7 +345,7 @@ impl Router {
         });
 
         let children = self.children.clone();
-        Box::pin(async move { Router::start_childen(children).await })
+        Box::pin(async move { Router::start_children(children).await })
     }
 
     // Stop ...
@@ -356,10 +357,10 @@ impl Router {
         self.done.take();
 
         let children = self.children.clone();
-        Box::pin(async move { Router::stop_childen(children).await })
+        Box::pin(async move { Router::stop_children(children).await })
     }
 
-    async fn start_childen(children: Vec<Arc<Mutex<Router>>>) -> Result<()> {
+    async fn start_children(children: Vec<Arc<Mutex<Router>>>) -> Result<()> {
         for child in children {
             let mut c = child.lock().await;
             c.start().await?;
@@ -368,7 +369,7 @@ impl Router {
         Ok(())
     }
 
-    async fn stop_childen(children: Vec<Arc<Mutex<Router>>>) -> Result<()> {
+    async fn stop_children(children: Vec<Arc<Mutex<Router>>>) -> Result<()> {
         for child in children {
             let mut c = child.lock().await;
             c.stop().await?;

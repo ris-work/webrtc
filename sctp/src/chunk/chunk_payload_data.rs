@@ -1,16 +1,17 @@
 use std::fmt;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::SystemTime;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use portable_atomic::AtomicBool;
 
 use super::chunk_header::*;
 use super::chunk_type::*;
 use super::*;
 
 pub(crate) const PAYLOAD_DATA_ENDING_FRAGMENT_BITMASK: u8 = 1;
-pub(crate) const PAYLOAD_DATA_BEGINING_FRAGMENT_BITMASK: u8 = 2;
+pub(crate) const PAYLOAD_DATA_BEGINNING_FRAGMENT_BITMASK: u8 = 2;
 pub(crate) const PAYLOAD_DATA_UNORDERED_BITMASK: u8 = 4;
 pub(crate) const PAYLOAD_DATA_IMMEDIATE_SACK: u8 = 8;
 pub(crate) const PAYLOAD_DATA_HEADER_SIZE: usize = 12;
@@ -185,7 +186,7 @@ impl Chunk for ChunkPayloadData {
 
         let immediate_sack = (header.flags & PAYLOAD_DATA_IMMEDIATE_SACK) != 0;
         let unordered = (header.flags & PAYLOAD_DATA_UNORDERED_BITMASK) != 0;
-        let beginning_fragment = (header.flags & PAYLOAD_DATA_BEGINING_FRAGMENT_BITMASK) != 0;
+        let beginning_fragment = (header.flags & PAYLOAD_DATA_BEGINNING_FRAGMENT_BITMASK) != 0;
         let ending_fragment = (header.flags & PAYLOAD_DATA_ENDING_FRAGMENT_BITMASK) != 0;
 
         // validity of value_length is checked in ChunkHeader::unmarshal

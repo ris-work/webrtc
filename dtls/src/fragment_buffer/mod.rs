@@ -60,7 +60,7 @@ impl FragmentBuffer {
 
             self.cache
                 .entry(handshake_header.message_sequence)
-                .or_insert_with(Vec::new);
+                .or_default();
 
             // end index should be the length of handshake header but if the handshake
             // was fragmented, we should keep them all
@@ -139,7 +139,7 @@ fn append_message(target_offset: u32, frags: &[Fragment], raw_message: &mut Vec<
             let fragment_end =
                 f.handshake_header.fragment_offset + f.handshake_header.fragment_length;
 
-            // NB: Order here is imporant, the `f.handshake_header.fragment_length != 0`
+            // NB: Order here is important, the `f.handshake_header.fragment_length != 0`
             // MUST come before the recursive call.
             if fragment_end != f.handshake_header.length
                 && f.handshake_header.fragment_length != 0

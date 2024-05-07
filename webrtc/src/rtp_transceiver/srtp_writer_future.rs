@@ -1,9 +1,10 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use interceptor::{Attributes, RTCPReader, RTPWriter};
+use portable_atomic::AtomicBool;
 use srtp::session::Session;
 use srtp::stream::Stream;
 use tokio::sync::Mutex;
@@ -17,7 +18,7 @@ use crate::rtp_transceiver::SSRC;
 /// `RTP` packet sequence number manager.
 ///
 /// Used to override outgoing `RTP` packets' sequence numbers. On creating it is
-/// unabled and can be enabled before sending data begining. Once data sending
+/// unabled and can be enabled before sending data beginning. Once data sending
 /// began it can not be enabled any more.
 pub(crate) struct SequenceTransformer(util::sync::Mutex<SequenceTransformerInner>);
 

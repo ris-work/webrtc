@@ -78,7 +78,7 @@ fn test_payload_queue_get_gap_ack_block() -> Result<()> {
     pq.push(make_payload(5, 0), 0);
     pq.push(make_payload(6, 0), 0);
 
-    let gab1 = vec![GapAckBlock { start: 1, end: 6 }];
+    let gab1 = [GapAckBlock { start: 1, end: 6 }];
     let gab2 = pq.get_gap_ack_blocks(0);
     assert!(!gab2.is_empty());
     assert_eq!(gab2.len(), 1);
@@ -89,7 +89,7 @@ fn test_payload_queue_get_gap_ack_block() -> Result<()> {
     pq.push(make_payload(8, 0), 0);
     pq.push(make_payload(9, 0), 0);
 
-    let gab1 = vec![
+    let gab1 = [
         GapAckBlock { start: 1, end: 6 },
         GapAckBlock { start: 8, end: 9 },
     ];
@@ -261,7 +261,7 @@ fn test_pending_base_queue_push_and_pop() -> Result<()> {
 fn test_pending_base_queue_out_of_bounce() -> Result<()> {
     let mut pq = PendingBaseQueue::new();
     assert!(pq.pop_front().is_none(), "should be none");
-    assert!(pq.get(0).is_none(), "should be none");
+    assert!(pq.front().is_none(), "should be none");
 
     pq.push_back(make_data_chunk(0, false, NO_FRAGMENT));
     assert!(pq.get(1).is_none(), "should be none");
@@ -442,8 +442,9 @@ async fn test_pending_queue_append() -> Result<()> {
 ///////////////////////////////////////////////////////////////////
 //reassembly_queue_test
 ///////////////////////////////////////////////////////////////////
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
+
+use portable_atomic::AtomicUsize;
 
 use super::reassembly_queue::*;
 
@@ -807,7 +808,7 @@ fn test_reassembly_queue_detect_buffer_too_short() -> Result<()> {
 }
 
 #[test]
-fn test_reassembly_queue_forward_tsn_for_ordered_framents() -> Result<()> {
+fn test_reassembly_queue_forward_tsn_for_ordered_fragments() -> Result<()> {
     let mut rq = ReassemblyQueue::new(0);
 
     let org_ppi = PayloadProtocolIdentifier::Binary;
@@ -863,7 +864,7 @@ fn test_reassembly_queue_forward_tsn_for_ordered_framents() -> Result<()> {
 }
 
 #[test]
-fn test_reassembly_queue_forward_tsn_for_unordered_framents() -> Result<()> {
+fn test_reassembly_queue_forward_tsn_for_unordered_fragments() -> Result<()> {
     let mut rq = ReassemblyQueue::new(0);
 
     let org_ppi = PayloadProtocolIdentifier::Binary;

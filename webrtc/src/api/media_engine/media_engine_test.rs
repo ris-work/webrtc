@@ -654,7 +654,7 @@ async fn validate(m: &MediaEngine) -> Result<()> {
 
 /// The cloned MediaEngine instance should be able to update negotiated header extensions.
 #[tokio::test]
-async fn test_update_header_extenstion_to_cloned_media_engine() -> Result<()> {
+async fn test_update_header_extension_to_cloned_media_engine() -> Result<()> {
     let mut m = MediaEngine::default();
 
     m.register_codec(
@@ -765,7 +765,7 @@ a=rtpmap:111 opus/48000/2
 
     let params =
         m.get_rtp_parameters_by_kind(RTPCodecType::Video, RTCRtpTransceiverDirection::Sendonly);
-    dbg!(&params);
+    //dbg!(&params);
 
     let orientation = params
         .header_extensions

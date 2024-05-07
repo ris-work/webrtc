@@ -207,7 +207,10 @@ impl Flight for Flight5 {
                     Content::Handshake(Handshake::new(HandshakeMessage::Certificate(
                         HandshakeMessageCertificate {
                             certificate: if let Some(cert) = &certificate {
-                                cert.certificate.iter().map(|x| x.0.clone()).collect()
+                                cert.certificate
+                                    .iter()
+                                    .map(|x| x.as_ref().to_owned())
+                                    .collect()
                             } else {
                                 vec![]
                             },
@@ -336,7 +339,7 @@ impl Flight for Flight5 {
         }
 
         if let Err((alert, err)) =
-            initalize_cipher_suite(state, cache, cfg, &server_key_exchange, &merged).await
+            initialize_cipher_suite(state, cache, cfg, &server_key_exchange, &merged).await
         {
             return Err((alert, err));
         }
@@ -599,7 +602,7 @@ impl Flight for Flight5 {
         Ok(pkts)
     }
 }
-async fn initalize_cipher_suite(
+async fn initialize_cipher_suite(
     state: &mut State,
     cache: &HandshakeCache,
     cfg: &HandshakeConfig,
@@ -726,7 +729,6 @@ async fn initalize_cipher_suite(
             chains = match verify_server_cert(
                 &state.peer_certificates,
                 &cfg.server_cert_verifier,
-                &cfg.roots_cas,
                 &cfg.server_name,
             ) {
                 Ok(chains) => chains,

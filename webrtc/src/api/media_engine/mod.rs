@@ -3,9 +3,10 @@ mod media_engine_test;
 
 use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use portable_atomic::AtomicBool;
 use sdp::description::session::SessionDescription;
 use util::sync::Mutex as SyncMutex;
 
@@ -349,11 +350,11 @@ impl MediaEngine {
     }
 
     /// Adds a header extension to the MediaEngine
-    /// To determine the negotiated value use [`get_header_extension_id`] after signaling is complete.
+    /// To determine the negotiated value use [`MediaEngine::get_header_extension_id`] after signaling is complete.
     ///
     /// The `allowed_direction` controls for which transceiver directions the extension matches. If
     /// set to `None` it matches all directions. The `SendRecv` direction would match all transceiver
-    /// directions apart from `Inactive`. Inactive ony matches inactive.
+    /// directions apart from `Inactive`. Inactive only matches inactive.
     pub fn register_header_extension(
         &mut self,
         extension: RTCRtpHeaderExtensionCapability,
@@ -417,7 +418,7 @@ impl MediaEngine {
 
     /// get_header_extension_id returns the negotiated ID for a header extension.
     /// If the Header Extension isn't enabled ok will be false
-    pub(crate) async fn get_header_extension_id(
+    pub async fn get_header_extension_id(
         &self,
         extension: RTCRtpHeaderExtensionCapability,
     ) -> (isize, bool, bool) {
@@ -546,7 +547,7 @@ impl MediaEngine {
         typ: RTPCodecType,
     ) -> Result<()> {
         let mut negotiated_header_extensions = self.negotiated_header_extensions.lock();
-        let mut propsed_header_extensions = self.proposed_header_extensions.lock();
+        let mut proposed_header_extensions = self.proposed_header_extensions.lock();
 
         for local_extension in &self.header_extensions {
             if local_extension.uri != extension {
@@ -584,7 +585,7 @@ impl MediaEngine {
             }
 
             // Clear any proposals we had for this id
-            propsed_header_extensions.remove(&id);
+            proposed_header_extensions.remove(&id);
         }
         Ok(())
     }

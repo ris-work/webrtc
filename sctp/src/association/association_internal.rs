@@ -1,9 +1,8 @@
 #[cfg(test)]
 mod association_internal_test;
 
-use std::sync::atomic::AtomicBool;
-
 use async_trait::async_trait;
+use portable_atomic::AtomicBool;
 
 use super::*;
 use crate::param::param_forward_tsn_supported::ParamForwardTsnSupported;
@@ -975,9 +974,7 @@ impl AssociationInternal {
             let rst_reqs: Vec<ParamOutgoingResetRequest> =
                 self.reconfig_requests.values().cloned().collect();
             for rst_req in rst_reqs {
-                let resp = self.reset_streams_if_any(&rst_req);
-                log::debug!("[{}] RESET RESPONSE: {}", self.name, resp);
-                reply.push(resp);
+                self.reset_streams_if_any(&rst_req, false, &mut reply)?;
             }
         }
 
@@ -1630,15 +1627,11 @@ impl AssociationInternal {
         let mut pp = vec![];
 
         if let Some(param_a) = &c.param_a {
-            if let Some(p) = self.handle_reconfig_param(param_a).await? {
-                pp.push(p);
-            }
+            self.handle_reconfig_param(param_a, &mut pp).await?;
         }
 
         if let Some(param_b) = &c.param_b {
-            if let Some(p) = self.handle_reconfig_param(param_b).await? {
-                pp.push(p);
-            }
+            self.handle_reconfig_param(param_b, &mut pp).await?;
         }
 
         Ok(pp)
@@ -1751,11 +1744,13 @@ impl AssociationInternal {
     async fn handle_reconfig_param(
         &mut self,
         raw: &Box<dyn Param + Send + Sync>,
-    ) -> Result<Option<Packet>> {
+        reply: &mut Vec<Packet>,
+    ) -> Result<()> {
         if let Some(p) = raw.as_any().downcast_ref::<ParamOutgoingResetRequest>() {
             self.reconfig_requests
                 .insert(p.reconfig_request_sequence_number, p.clone());
-            Ok(Some(self.reset_streams_if_any(p)))
+            self.reset_streams_if_any(p, true, reply)?;
+            Ok(())
         } else if let Some(p) = raw.as_any().downcast_ref::<ParamReconfigResponse>() {
             self.reconfigs.remove(&p.reconfig_response_sequence_number);
             if self.reconfigs.is_empty() {
@@ -1763,14 +1758,21 @@ impl AssociationInternal {
                     treconfig.stop().await;
                 }
             }
-            Ok(None)
+            Ok(())
         } else {
-            Err(Error::ErrParamterType)
+            Err(Error::ErrParameterType)
         }
     }
 
-    fn reset_streams_if_any(&mut self, p: &ParamOutgoingResetRequest) -> Packet {
+    fn reset_streams_if_any(
+        &mut self,
+        p: &ParamOutgoingResetRequest,
+        respond: bool,
+        reply: &mut Vec<Packet>,
+    ) -> Result<()> {
         let mut result = ReconfigResult::SuccessPerformed;
+        let mut sis_to_reset = vec![];
+
         if sna32lte(p.sender_last_tsn, self.peer_last_tsn) {
             log::debug!(
                 "[{}] resetStream(): senderLastTSN={} <= peer_last_tsn={}",
@@ -1781,6 +1783,9 @@ impl AssociationInternal {
             for id in &p.stream_identifiers {
                 if let Some(s) = self.streams.get(id) {
                     let stream_identifier = s.stream_identifier;
+                    if respond {
+                        sis_to_reset.push(*id);
+                    }
                     self.unregister_stream(stream_identifier);
                 }
             }
@@ -1796,13 +1801,41 @@ impl AssociationInternal {
             result = ReconfigResult::InProgress;
         }
 
-        self.create_packet(vec![Box::new(ChunkReconfig {
+        // Answer incoming reset requests with the same reset request, but with
+        // reconfig_response_sequence_number.
+        if !sis_to_reset.is_empty() {
+            let rsn = self.generate_next_rsn();
+            let tsn = self.my_next_tsn - 1;
+
+            let c = ChunkReconfig {
+                param_a: Some(Box::new(ParamOutgoingResetRequest {
+                    reconfig_request_sequence_number: rsn,
+                    reconfig_response_sequence_number: p.reconfig_request_sequence_number,
+                    sender_last_tsn: tsn,
+                    stream_identifiers: sis_to_reset,
+                })),
+                ..Default::default()
+            };
+
+            self.reconfigs.insert(rsn, c.clone()); // store in the map for retransmission
+
+            let p = self.create_packet(vec![Box::new(c)]);
+            reply.push(p);
+        }
+
+        let packet = self.create_packet(vec![Box::new(ChunkReconfig {
             param_a: Some(Box::new(ParamReconfigResponse {
                 reconfig_response_sequence_number: p.reconfig_request_sequence_number,
                 result,
             })),
             param_b: None,
-        })])
+        })]);
+
+        log::debug!("[{}] RESET RESPONSE: {}", self.name, packet);
+
+        reply.push(packet);
+
+        Ok(())
     }
 
     /// Move the chunk peeked with self.pending_queue.peek() to the inflight_queue.
@@ -1812,7 +1845,7 @@ impl AssociationInternal {
         unordered: bool,
     ) -> Option<ChunkPayloadData> {
         if let Some(mut c) = self.pending_queue.pop(beginning_fragment, unordered) {
-            // Mark all fragements are in-flight now
+            // Mark all fragments are in-flight now
             if c.ending_fragment {
                 c.set_all_inflight();
             }

@@ -872,7 +872,7 @@ async fn test_data_channel_buffered_amount_set_before_open() -> Result<()> {
         Box::pin(async move {
             for _ in 0..10 {
                 assert!(
-                    matches!(dc3.send(&buf).await, Ok(_)),
+                    dc3.send(&buf).await.is_ok(),
                     "Failed to send string on data channel"
                 );
                 assert_eq!(
@@ -973,7 +973,7 @@ async fn test_data_channel_buffered_amount_set_after_open() -> Result<()> {
 
             for _ in 0..10 {
                 assert!(
-                    matches!(dc3.send(&buf).await, Ok(_)),
+                    dc3.send(&buf).await.is_ok(),
                     "Failed to send string on data channel"
                 );
                 assert_eq!(
@@ -1093,7 +1093,7 @@ async fn test_eof_detach() -> Result<()> {
 
         dc.close().await?;
 
-        log::debug!("Wating for EOF");
+        log::debug!("Waiting for EOF");
         let mut buf = vec![0u8; 256];
         let n = dc.read(&mut buf).await?;
         assert_eq!(0, n, "should be empty");
@@ -1256,8 +1256,8 @@ async fn test_data_channel_non_standard_session_description() -> Result<()> {
     answer_pc.set_local_description(answer).await?;
     let _ = answer_gathering_complete.recv().await;
 
-    let anwser = answer_pc.local_description().await.unwrap();
-    offer_pc.set_remote_description(anwser).await?;
+    let answer = answer_pc.local_description().await.unwrap();
+    offer_pc.set_remote_description(answer).await?;
 
     let _ = on_data_channel_called_rx.recv().await;
 

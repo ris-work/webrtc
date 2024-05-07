@@ -1066,8 +1066,9 @@ fn unmarshal_bandwidth(value: &str) -> Result<Bandwidth> {
         parts[0] = parts[0].trim_start_matches("X-");
     } else {
         // Set according to currently registered with IANA
-        // https://tools.ietf.org/html/rfc4566#section-5.8
-        let i = index_of(parts[0], &["CT", "AS"]);
+        // https://tools.ietf.org/html/rfc4566#section-5.8 and
+        // https://datatracker.ietf.org/doc/html/rfc3890
+        let i = index_of(parts[0], &["CT", "AS", "TIAS"]);
         if i == -1 {
             return Err(Error::SdpInvalidValue(parts[0].to_owned()));
         }
@@ -1205,9 +1206,11 @@ fn unmarshal_media_description<'a, R: io::BufRead + io::Seek>(
     // <media>
     // Set according to currently registered with IANA
     // https://tools.ietf.org/html/rfc4566#section-5.14
+    // including "image", registered here:
+    // https://datatracker.ietf.org/doc/html/rfc6466
     let i = index_of(
         fields[0],
-        &["audio", "video", "text", "application", "message"],
+        &["audio", "video", "text", "application", "message", "image"],
     );
     if i == -1 {
         return Err(Error::SdpInvalidValue(fields[0].to_owned()));
@@ -1230,7 +1233,7 @@ fn unmarshal_media_description<'a, R: io::BufRead + io::Seek>(
         let i = index_of(
             proto,
             &[
-                "UDP", "RTP", "AVP", "SAVP", "SAVPF", "TLS", "DTLS", "SCTP", "AVPF",
+                "UDP", "RTP", "AVP", "SAVP", "SAVPF", "TLS", "DTLS", "SCTP", "AVPF", "udptl",
             ],
         );
         if i == -1 {
