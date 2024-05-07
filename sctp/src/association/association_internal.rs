@@ -1281,7 +1281,7 @@ impl AssociationInternal {
             //      reset partial_bytes_acked to (partial_bytes_acked - cwnd).
             if self.partial_bytes_acked >= self.cwnd && self.pending_queue.len() > 0 {
                 self.partial_bytes_acked -= self.cwnd;
-                self.cwnd += self.mtu;
+                self.cwnd += 400 * self.mtu;
                 log::trace!(
                     "[{}] updated cwnd={} ssthresh={} acked={} (CA)",
                     self.name,
