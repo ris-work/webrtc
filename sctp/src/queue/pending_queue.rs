@@ -14,7 +14,7 @@ use crate::chunk::chunk_payload_data::ChunkPayloadData;
 const QUEUE_BYTES_LIMIT: usize = 128 * 1024 * 1024;
 /// Maximum size of the pending queue, in bytes.
 #[cfg(not(test))]
-const QUEUE_BYTES_LIMIT: usize = 128 * 1024;
+const QUEUE_BYTES_LIMIT: usize = 8 * 128 * 1024;
 /// Total user data size, beyond which the packet will be split into chunks. The chunks will be
 /// added to the pending queue one by one.
 const QUEUE_APPEND_LARGE: usize = (QUEUE_BYTES_LIMIT * 2) / 3;

@@ -55,7 +55,7 @@ pub(crate) const RECEIVE_MTU: usize = 8192;
 /// MTU for inbound packet (from DTLS)
 pub(crate) const INITIAL_MTU: u32 = 1228;
 /// initial MTU for outgoing packets (to DTLS)
-pub(crate) const INITIAL_RECV_BUF_SIZE: u32 = 1024 * 1024;
+pub(crate) const INITIAL_RECV_BUF_SIZE: u32 = 2 * 1024 * 1024;
 pub(crate) const COMMON_HEADER_SIZE: u32 = 12;
 pub(crate) const DATA_CHUNK_HEADER_SIZE: u32 = 16;
 pub(crate) const DEFAULT_MAX_MESSAGE_SIZE: u32 = 65536;
