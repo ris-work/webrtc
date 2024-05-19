@@ -189,8 +189,8 @@ pub(crate) fn track_details_from_sdp(
                         if track_idx < tracks_in_media_section.len() {
                             tracks_in_media_section[track_idx].mid = SmolStr::from(mid_value);
                             tracks_in_media_section[track_idx].kind = codec_type;
-                            tracks_in_media_section[track_idx].stream_id = stream_id.to_owned();
-                            tracks_in_media_section[track_idx].id = track_id.to_owned();
+                            stream_id.clone_into(&mut tracks_in_media_section[track_idx].stream_id);
+                            track_id.clone_into(&mut tracks_in_media_section[track_idx].id);
                             tracks_in_media_section[track_idx].ssrcs = vec![ssrc];
                             tracks_in_media_section[track_idx].repair_ssrc = repair_ssrc;
                         } else {
@@ -248,7 +248,7 @@ pub(crate) fn get_rids(media: &MediaDescription) -> Vec<SimulcastRid> {
                 log::warn!("Failed to parse RID: {}", err);
             }
         } else if attr.key.as_str() == SDP_ATTRIBUTE_SIMULCAST {
-            simulcast_attr = attr.value.clone();
+            simulcast_attr.clone_from(&attr.value);
         }
     }
 
@@ -738,6 +738,13 @@ impl TryFrom<&String> for SimulcastRid {
     }
 }
 
+fn bundle_match(bundle: Option<&String>, id: &str) -> bool {
+    match bundle {
+        None => true,
+        Some(b) => b.split_whitespace().any(|s| s == id),
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct MediaSection {
     pub(crate) id: String,
@@ -752,6 +759,7 @@ pub(crate) struct PopulateSdpParams {
     pub(crate) is_icelite: bool,
     pub(crate) connection_role: ConnectionRole,
     pub(crate) ice_gathering_state: RTCIceGatheringState,
+    pub(crate) match_bundle_group: Option<String>,
 }
 
 /// populate_sdp serializes a PeerConnections state into an SDP
@@ -819,7 +827,14 @@ pub(crate) async fn populate_sdp(
         };
 
         if should_add_id {
-            append_bundle(&m.id, &mut bundle_value, &mut bundle_count);
+            if bundle_match(params.match_bundle_group.as_ref(), &m.id) {
+                append_bundle(&m.id, &mut bundle_value, &mut bundle_count);
+            } else if let Some(desc) = d.media_descriptions.last_mut() {
+                desc.media_name.port = RangedPort {
+                    value: 0,
+                    range: None,
+                }
+            }
         }
     }
 
@@ -837,7 +852,11 @@ pub(crate) async fn populate_sdp(
         d = d.with_value_attribute(ATTR_KEY_ICELITE.to_owned(), ATTR_KEY_ICELITE.to_owned());
     }
 
-    Ok(d.with_value_attribute(ATTR_KEY_GROUP.to_owned(), bundle_value))
+    if bundle_count > 0 {
+        d = d.with_value_attribute(ATTR_KEY_GROUP.to_owned(), bundle_value);
+    }
+
+    Ok(d)
 }
 
 pub(crate) fn get_mid_value(media: &MediaDescription) -> Option<&String> {
