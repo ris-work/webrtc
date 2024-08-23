@@ -7,7 +7,7 @@ description = "A pure Rust implementation of mDNS"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/webrtc-mdns"
 homepage = "https://webrtc.rs"
-repository = "https://github.com/webrtc-rs/mdns"
+repository = "https://github.com/webrtc-rs/webrtc/tree/master/mdns"
 
 [features]
 default = [ "reuse_port" ]
@@ -33,7 +33,7 @@ log = "0.4"
 thiserror = "1"
 
 [dev-dependencies]
-env_logger = "0.10"
+env_logger = "0.11.3"
 chrono = "0.4.28"
 clap = "3"
 

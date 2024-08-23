@@ -254,6 +254,51 @@ async fn test_extract_ice_details() -> Result<()> {
         );
     }
 
+    //"Allow Conflict ufrag from inactive MediaDescription"
+    {
+        let s = SessionDescription {
+            media_descriptions: vec![
+                MediaDescription {
+                    attributes: vec![
+                        Attribute {
+                            key: "ice-ufrag".to_owned(),
+                            value: Some(DEFAULT_UFRAG.to_owned()),
+                        },
+                        Attribute {
+                            key: "ice-pwd".to_owned(),
+                            value: Some(DEFAULT_PWD.to_owned()),
+                        },
+                    ],
+                    ..Default::default()
+                },
+                MediaDescription {
+                    attributes: vec![
+                        Attribute {
+                            key: "ice-ufrag".to_owned(),
+                            value: Some("invalidUfrag".to_owned()),
+                        },
+                        Attribute {
+                            key: "ice-pwd".to_owned(),
+                            value: Some(DEFAULT_PWD.to_owned()),
+                        },
+                        Attribute {
+                            key: ATTR_KEY_INACTIVE.to_owned(),
+                            value: None,
+                        },
+                    ],
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        let (ufrag, pwd, _) = extract_ice_details(&s)
+            .await
+            .expect("should allow conflicting ICE ufrag when MediaDescription is inactive");
+        assert_eq!(ufrag, DEFAULT_UFRAG);
+        assert_eq!(pwd, DEFAULT_PWD);
+    }
+
     Ok(())
 }
 
@@ -536,6 +581,7 @@ async fn fingerprint_test(
     let params = PopulateSdpParams {
         media_description_fingerprint: sdpmedia_description_fingerprints,
         is_icelite: false,
+        extmap_allow_mixed: false,
         connection_role: ConnectionRole::Active,
         ice_gathering_state: RTCIceGatheringState::New,
         match_bundle_group: None,
@@ -650,6 +696,7 @@ async fn test_media_description_fingerprints() -> Result<()> {
                 RTCRtpSender::new(
                     api.setting_engine.get_receive_mtu(),
                     Some(track),
+                    RTPCodecType::Video,
                     Arc::new(RTCDtlsTransport::default()),
                     Arc::clone(&api.media_engine),
                     Arc::clone(&interceptor),
@@ -731,6 +778,7 @@ async fn test_populate_sdp() -> Result<()> {
         let params = PopulateSdpParams {
             media_description_fingerprint: se.sdp_media_level_fingerprints,
             is_icelite: se.candidates.ice_lite,
+            extmap_allow_mixed: true,
             connection_role: DEFAULT_DTLS_ROLE_OFFER.to_connection_role(),
             ice_gathering_state: RTCIceGatheringState::Complete,
             match_bundle_group: None,
@@ -836,6 +884,7 @@ async fn test_populate_sdp() -> Result<()> {
         let params = PopulateSdpParams {
             media_description_fingerprint: se.sdp_media_level_fingerprints,
             is_icelite: se.candidates.ice_lite,
+            extmap_allow_mixed: true,
             connection_role: DEFAULT_DTLS_ROLE_OFFER.to_connection_role(),
             ice_gathering_state: RTCIceGatheringState::Complete,
             match_bundle_group: None,
@@ -916,6 +965,7 @@ async fn test_populate_sdp() -> Result<()> {
         let params = PopulateSdpParams {
             media_description_fingerprint: se.sdp_media_level_fingerprints,
             is_icelite: se.candidates.ice_lite,
+            extmap_allow_mixed: true,
             connection_role: DEFAULT_DTLS_ROLE_OFFER.to_connection_role(),
             ice_gathering_state: RTCIceGatheringState::Complete,
             match_bundle_group: None,
@@ -935,6 +985,8 @@ async fn test_populate_sdp() -> Result<()> {
             offer_sdp.attribute(ATTR_KEY_GROUP),
             Some(&"BUNDLE video".to_owned())
         );
+
+        assert!(offer_sdp.has_attribute(ATTR_KEY_EXTMAP_ALLOW_MIXED));
     }
 
     //"Bundle matched"
@@ -1011,6 +1063,7 @@ async fn test_populate_sdp() -> Result<()> {
         let params = PopulateSdpParams {
             media_description_fingerprint: se.sdp_media_level_fingerprints,
             is_icelite: se.candidates.ice_lite,
+            extmap_allow_mixed: true,
             connection_role: DEFAULT_DTLS_ROLE_OFFER.to_connection_role(),
             ice_gathering_state: RTCIceGatheringState::Complete,
             match_bundle_group: Some("audio".to_owned()),
@@ -1076,6 +1129,7 @@ async fn test_populate_sdp() -> Result<()> {
         let params = PopulateSdpParams {
             media_description_fingerprint: se.sdp_media_level_fingerprints,
             is_icelite: se.candidates.ice_lite,
+            extmap_allow_mixed: true,
             connection_role: DEFAULT_DTLS_ROLE_OFFER.to_connection_role(),
             ice_gathering_state: RTCIceGatheringState::Complete,
             match_bundle_group: Some("".to_owned()),
@@ -1185,6 +1239,7 @@ async fn test_populate_sdp_reject() -> Result<()> {
     let params = PopulateSdpParams {
         media_description_fingerprint: se.sdp_media_level_fingerprints,
         is_icelite: se.candidates.ice_lite,
+        extmap_allow_mixed: true,
         connection_role: DEFAULT_DTLS_ROLE_OFFER.to_connection_role(),
         ice_gathering_state: RTCIceGatheringState::Complete,
         match_bundle_group: None,

@@ -7,7 +7,7 @@ description = "A pure Rust implementation of SCTP"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/webrtc-sctp"
 homepage = "https://webrtc.rs"
-repository = "https://github.com/webrtc-rs/sctp"
+repository = "https://github.com/webrtc-rs/webrtc/tree/master/sctp"
 
 [dependencies]
 util = { version = "0.9.0", path = "../util", package = "webrtc-util", default-features = false, features = ["conn"] }
@@ -36,7 +36,7 @@ portable-atomic = "1.6"
 [dev-dependencies]
 tokio-test = "0.4"
 lazy_static = "1"
-env_logger = "0.10"
+env_logger = "0.11.3"
 chrono = "0.4.28"
 clap = "3"
 
@@ -49,3 +49,6 @@ bench = false
 name = "pong"
 path = "examples/pong.rs"
 bench = false
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }

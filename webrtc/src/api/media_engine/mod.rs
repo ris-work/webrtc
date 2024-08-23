@@ -28,6 +28,9 @@ use crate::stats::StatsReportType::Codec;
 /// MIME_TYPE_H264 H264 MIME type.
 /// Note: Matching should be case insensitive.
 pub const MIME_TYPE_H264: &str = "video/H264";
+/// MIME_TYPE_HEVC HEVC MIME type.
+/// Note: Matching should be case insensitive.
+pub const MIME_TYPE_HEVC: &str = "video/HEVC";
 /// MIME_TYPE_OPUS Opus MIME type
 /// Note: Matching should be case insensitive.
 pub const MIME_TYPE_OPUS: &str = "audio/opus";
@@ -286,9 +289,20 @@ impl MediaEngine {
                     clock_rate: 90000,
                     channels: 0,
                     sdp_fmtp_line: "profile-id=0".to_owned(),
-                    rtcp_feedback: video_rtcp_feedback,
+                    rtcp_feedback: video_rtcp_feedback.clone(),
                 },
                 payload_type: 41,
+                ..Default::default()
+            },
+            RTCRtpCodecParameters {
+                capability: RTCRtpCodecCapability {
+                    mime_type: MIME_TYPE_HEVC.to_owned(),
+                    clock_rate: 90000,
+                    channels: 0,
+                    sdp_fmtp_line: "".to_owned(),
+                    rtcp_feedback: video_rtcp_feedback,
+                },
+                payload_type: 126,
                 ..Default::default()
             },
             RTCRtpCodecParameters {
@@ -451,7 +465,7 @@ impl MediaEngine {
         &self,
         payload_type: PayloadType,
     ) -> Result<(RTCRtpCodecParameters, RTPCodecType)> {
-        {
+        if self.negotiated_video.load(Ordering::SeqCst) {
             let negotiated_video_codecs = self.negotiated_video_codecs.lock();
             for codec in &*negotiated_video_codecs {
                 if codec.payload_type == payload_type {
@@ -459,9 +473,23 @@ impl MediaEngine {
                 }
             }
         }
-        {
+        if self.negotiated_audio.load(Ordering::SeqCst) {
             let negotiated_audio_codecs = self.negotiated_audio_codecs.lock();
             for codec in &*negotiated_audio_codecs {
+                if codec.payload_type == payload_type {
+                    return Ok((codec.clone(), RTPCodecType::Audio));
+                }
+            }
+        }
+        if !self.negotiated_video.load(Ordering::SeqCst) {
+            for codec in &self.video_codecs {
+                if codec.payload_type == payload_type {
+                    return Ok((codec.clone(), RTPCodecType::Video));
+                }
+            }
+        }
+        if !self.negotiated_audio.load(Ordering::SeqCst) {
+            for codec in &self.audio_codecs {
                 if codec.payload_type == payload_type {
                     return Ok((codec.clone(), RTPCodecType::Audio));
                 }

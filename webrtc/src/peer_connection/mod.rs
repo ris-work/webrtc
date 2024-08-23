@@ -191,7 +191,7 @@ pub struct RTCPeerConnection {
     stats_id: String,
     idp_login_url: Option<String>,
 
-    configuration: RTCConfiguration,
+    configuration: Mutex<RTCConfiguration>,
 
     interceptor_rtcp_writer: Arc<dyn RTCPWriter + Send + Sync>,
 
@@ -256,7 +256,7 @@ impl RTCPeerConnection {
             interceptor,
             interceptor_rtcp_writer,
             internal,
-            configuration,
+            configuration: Mutex::new(configuration),
             idp_login_url: None,
         })
     }
@@ -647,61 +647,58 @@ impl RTCPeerConnection {
         }
     }
 
-    /*TODO: // set_configuration updates the configuration of this PeerConnection object.
-    pub async fn set_configuration(&mut self, configuration: Configuration) -> Result<()> {
-        //nolint:gocognit
+    // set_configuration updates the configuration of this PeerConnection object.
+    pub async fn set_configuration(&self, configuration: RTCConfiguration) -> Result<()> {
         // https://www.w3.org/TR/webrtc/#dom-rtcpeerconnection-setconfiguration (step #2)
+        let mut config_lock = self.configuration.lock().await;
+
         if self.internal.is_closed.load(Ordering::SeqCst) {
-            return Err(Error::ErrConnectionClosed.into());
+            return Err(Error::ErrConnectionClosed);
         }
 
         // https://www.w3.org/TR/webrtc/#set-the-configuration (step #3)
         if !configuration.peer_identity.is_empty() {
-            if configuration.peer_identity != self.configuration.peer_identity {
-                return Err(Error::ErrModifyingPeerIdentity.into());
+            if configuration.peer_identity != config_lock.peer_identity {
+                return Err(Error::ErrModifyingPeerIdentity);
             }
-            self.configuration.peer_identity = configuration.peer_identity;
+            config_lock.peer_identity = configuration.peer_identity;
         }
 
         // https://www.w3.org/TR/webrtc/#set-the-configuration (step #4)
         if !configuration.certificates.is_empty() {
-            if configuration.certificates.len() != self.configuration.certificates.len() {
-                return Err(Error::ErrModifyingCertificates.into());
+            if configuration.certificates.len() != config_lock.certificates.len() {
+                return Err(Error::ErrModifyingCertificates);
             }
 
-            self.configuration.certificates = configuration.certificates;
+            config_lock.certificates = configuration.certificates;
         }
 
         // https://www.w3.org/TR/webrtc/#set-the-configuration (step #5)
-        if configuration.bundle_policy != BundlePolicy::Unspecified {
-            if configuration.bundle_policy != self.configuration.bundle_policy {
-                return Err(Error::ErrModifyingBundlePolicy.into());
-            }
-            self.configuration.bundle_policy = configuration.bundle_policy;
+
+        if configuration.bundle_policy != config_lock.bundle_policy {
+            return Err(Error::ErrModifyingBundlePolicy);
         }
+        config_lock.bundle_policy = configuration.bundle_policy;
 
         // https://www.w3.org/TR/webrtc/#set-the-configuration (step #6)
-        if configuration.rtcp_mux_policy != RTCPMuxPolicy::Unspecified {
-            if configuration.rtcp_mux_policy != self.configuration.rtcp_mux_policy {
-                return Err(Error::ErrModifyingRTCPMuxPolicy.into());
-            }
-            self.configuration.rtcp_mux_policy = configuration.rtcp_mux_policy;
+        if configuration.rtcp_mux_policy != config_lock.rtcp_mux_policy {
+            return Err(Error::ErrModifyingRTCPMuxPolicy);
         }
+        config_lock.rtcp_mux_policy = configuration.rtcp_mux_policy;
 
         // https://www.w3.org/TR/webrtc/#set-the-configuration (step #7)
         if configuration.ice_candidate_pool_size != 0 {
-            if self.configuration.ice_candidate_pool_size != configuration.ice_candidate_pool_size
+            if config_lock.ice_candidate_pool_size != configuration.ice_candidate_pool_size
                 && self.local_description().await.is_some()
             {
-                return Err(Error::ErrModifyingICECandidatePoolSize.into());
+                return Err(Error::ErrModifyingICECandidatePoolSize);
             }
-            self.configuration.ice_candidate_pool_size = configuration.ice_candidate_pool_size;
+            config_lock.ice_candidate_pool_size = configuration.ice_candidate_pool_size;
         }
 
         // https://www.w3.org/TR/webrtc/#set-the-configuration (step #8)
-        if configuration.ice_transport_policy != ICETransportPolicy::Unspecified {
-            self.configuration.ice_transport_policy = configuration.ice_transport_policy
-        }
+
+        config_lock.ice_transport_policy = configuration.ice_transport_policy;
 
         // https://www.w3.org/TR/webrtc/#set-the-configuration (step #11)
         if !configuration.ice_servers.is_empty() {
@@ -709,18 +706,19 @@ impl RTCPeerConnection {
             for server in &configuration.ice_servers {
                 server.validate()?;
             }
-            self.configuration.ice_servers = configuration.ice_servers
+            config_lock.ice_servers = configuration.ice_servers
         }
         Ok(())
-    }*/
+    }
 
     /// get_configuration returns a Configuration object representing the current
     /// configuration of this PeerConnection object. The returned object is a
     /// copy and direct mutation on it will not take affect until set_configuration
     /// has been called with Configuration passed as its only argument.
     /// <https://www.w3.org/TR/webrtc/#dom-rtcpeerconnection-getconfiguration>
-    pub fn get_configuration(&self) -> &RTCConfiguration {
-        &self.configuration
+    pub async fn get_configuration(&self) -> RTCConfiguration {
+        let configuration = self.configuration.lock().await;
+        configuration.clone()
     }
 
     pub fn get_stats_id(&self) -> &str {
@@ -886,14 +884,21 @@ impl RTCPeerConnection {
                 // Any of the RTCIceTransports or RTCDtlsTransports are in the "disconnected"
                 // state and none of them are in the "failed" or "connecting" or "checking" state.
                 RTCPeerConnectionState::Disconnected
-            } else if ice_connection_state == RTCIceConnectionState::Connected && dtls_transport_state == RTCDtlsTransportState::Connected {
-                // All RTCIceTransports and RTCDtlsTransports are in the "connected", "completed" or "closed"
-                // state and at least one of them is in the "connected" or "completed" state.
-                RTCPeerConnectionState::Connected
-            } else if ice_connection_state == RTCIceConnectionState::Checking && dtls_transport_state == RTCDtlsTransportState::Connecting {
-                //  Any of the RTCIceTransports or RTCDtlsTransports are in the "connecting" or
-                // "checking" state and none of them is in the "failed" state.
+            } else if (ice_connection_state == RTCIceConnectionState::New || ice_connection_state == RTCIceConnectionState::Closed) &&
+                (dtls_transport_state == RTCDtlsTransportState::New || dtls_transport_state == RTCDtlsTransportState::Closed) {
+                // None of the previous states apply and all RTCIceTransports are in the "new" or "closed" state,
+                // and all RTCDtlsTransports are in the "new" or "closed" state, or there are no transports.
+                RTCPeerConnectionState::New
+            } else if (ice_connection_state == RTCIceConnectionState::New || ice_connection_state == RTCIceConnectionState::Checking) ||
+                (dtls_transport_state == RTCDtlsTransportState::New || dtls_transport_state == RTCDtlsTransportState::Connecting) {
+                // None of the previous states apply and any RTCIceTransport is in the "new" or "checking" state or
+                // any RTCDtlsTransport is in the "new" or "connecting" state.
                 RTCPeerConnectionState::Connecting
+            } else if (ice_connection_state == RTCIceConnectionState::Connected || ice_connection_state == RTCIceConnectionState::Completed || ice_connection_state == RTCIceConnectionState::Closed) &&
+                (dtls_transport_state == RTCDtlsTransportState::Connected || dtls_transport_state == RTCDtlsTransportState::Closed) {
+                // All RTCIceTransports and RTCDtlsTransports are in the "connected", "completed" or "closed"
+                // state and all RTCDtlsTransports are in the "connected" or "closed" state.
+                RTCPeerConnectionState::Connected
             } else {
                 RTCPeerConnectionState::New
             };
@@ -1412,6 +1417,7 @@ impl RTCPeerConnection {
                                 RTCRtpSender::new(
                                     receive_mtu,
                                     None,
+                                    kind,
                                     Arc::clone(&self.internal.dtls_transport),
                                     Arc::clone(&self.internal.media_engine),
                                     Arc::clone(&self.interceptor),
@@ -1610,7 +1616,10 @@ impl RTCPeerConnection {
         let current_transceivers = self.internal.rtp_transceivers.lock().await;
         for transceiver in &*current_transceivers {
             let sender = transceiver.sender().await;
-            if sender.is_negotiated() && !sender.has_sent() {
+            if !sender.track_encodings.lock().await.is_empty()
+                && sender.is_negotiated()
+                && !sender.has_sent()
+            {
                 sender.send(&sender.get_parameters().await).await?;
             }
         }
@@ -1703,7 +1712,10 @@ impl RTCPeerConnection {
             for t in &*rtp_transceivers {
                 if !t.stopped.load(Ordering::SeqCst)
                     && t.kind == track.kind()
-                    && track.id() == t.sender().await.id
+                    && t.sender()
+                        .await
+                        .initial_track_id()
+                        .is_some_and(|id| id == track.id())
                 {
                     let sender = t.sender().await;
                     if sender.track().await.is_none() {
